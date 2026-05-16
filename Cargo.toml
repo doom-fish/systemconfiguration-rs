@@ -1,6 +1,6 @@
 [package]
 name = "systemconfiguration-rs"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 homepage = "https://github.com/doom-fish/systemconfiguration-rs"
@@ -14,7 +14,8 @@ readme = "README.md"
 build = "build.rs"
 include = [
     "src/**/*",
-    "swift-bridge/**/*",
+    "swift-bridge/Package.swift",
+    "swift-bridge/Sources/**/*",
     "examples/**/*",
     "tests/**/*",
     "build.rs",

@@ -1,16 +1,51 @@
 import Foundation
+import Security
 import SystemConfiguration
 
-final class PreferencesBox {
-    let value: SCPreferences
+final class PreferencesCallbackBox {
+    let callback: RustPreferencesCallback
+    let info: UnsafeMutableRawPointer?
 
-    init(_ value: SCPreferences) {
-        self.value = value
+    init(callback: @escaping RustPreferencesCallback, info: UnsafeMutableRawPointer?) {
+        self.callback = callback
+        self.info = info
     }
 }
 
+final class PreferencesBox {
+    let value: SCPreferences
+    var callbackBox: PreferencesCallbackBox?
+    var dispatchQueue: DispatchQueue?
+
+    init(_ value: SCPreferences) {
+        self.value = value
+        callbackBox = nil
+        dispatchQueue = nil
+    }
+}
+
+public typealias RustPreferencesCallback = @convention(c) (UInt32, UnsafeMutableRawPointer?) -> Void
+
 func preferences(_ raw: UnsafeMutableRawPointer?) -> PreferencesBox? {
     unretained(raw)
+}
+
+private func preferencesCallback(
+    _ prefs: SCPreferences,
+    _ notificationType: SCPreferencesNotification,
+    _ info: UnsafeMutableRawPointer?
+) {
+    guard let info else {
+        return
+    }
+
+    let callbackBox = Unmanaged<PreferencesCallbackBox>.fromOpaque(info).takeUnretainedValue()
+    callbackBox.callback(notificationType.rawValue, callbackBox.info)
+}
+
+@_cdecl("sc_preferences_get_type_id")
+public func sc_preferences_get_type_id() -> UInt64 {
+    UInt64(SCPreferencesGetTypeID())
 }
 
 @_cdecl("sc_preferences_create")
@@ -23,6 +58,28 @@ public func sc_preferences_create(
     }
 
     guard let prefs = SCPreferencesCreate(nil, name as CFString, decodeCString(prefsID) as CFString?) else {
+        return nil
+    }
+    return retain(PreferencesBox(prefs))
+}
+
+@_cdecl("sc_preferences_create_with_authorization")
+public func sc_preferences_create_with_authorization(
+    _ name: UnsafePointer<CChar>?,
+    _ prefsID: UnsafePointer<CChar>?,
+    _ authorizationRaw: UnsafeMutableRawPointer?
+) -> UnsafeMutableRawPointer? {
+    guard let name = decodeCString(name) else {
+        return nil
+    }
+
+    let authorization = authorizationRaw.map(OpaquePointer.init)
+    guard let prefs = SCPreferencesCreateWithAuthorization(
+        nil,
+        name as CFString,
+        decodeCString(prefsID) as CFString?,
+        authorization
+    ) else {
         return nil
     }
     return retain(PreferencesBox(prefs))
@@ -140,6 +197,94 @@ public func sc_preferences_remove_value(
         return 0
     }
     return u8(SCPreferencesRemoveValue(box.value, key as CFString))
+}
+
+@_cdecl("sc_preferences_set_callback")
+public func sc_preferences_set_callback(
+    _ raw: UnsafeMutableRawPointer?,
+    _ callback: RustPreferencesCallback?,
+    _ info: UnsafeMutableRawPointer?
+) -> UInt8 {
+    guard let box = preferences(raw) else {
+        return 0
+    }
+
+    guard let callback else {
+        let ok = SCPreferencesSetCallback(box.value, nil, nil)
+        if ok {
+            box.callbackBox = nil
+        }
+        return u8(ok)
+    }
+
+    let callbackBox = PreferencesCallbackBox(callback: callback, info: info)
+    var context = SCPreferencesContext(
+        version: 0,
+        info: Unmanaged.passUnretained(callbackBox).toOpaque(),
+        retain: nil,
+        release: nil,
+        copyDescription: nil
+    )
+    let ok = withUnsafeMutablePointer(to: &context) { contextPtr in
+        SCPreferencesSetCallback(box.value, preferencesCallback, contextPtr)
+    }
+    if ok {
+        box.callbackBox = callbackBox
+    }
+    return u8(ok)
+}
+
+@_cdecl("sc_preferences_schedule_with_run_loop_current")
+public func sc_preferences_schedule_with_run_loop_current(_ raw: UnsafeMutableRawPointer?) -> UInt8 {
+    guard let box = preferences(raw) else {
+        return 0
+    }
+    return u8(
+        SCPreferencesScheduleWithRunLoop(
+            box.value,
+            CFRunLoopGetCurrent(),
+            CFRunLoopMode.defaultMode.rawValue as CFString
+        )
+    )
+}
+
+@_cdecl("sc_preferences_unschedule_from_run_loop_current")
+public func sc_preferences_unschedule_from_run_loop_current(_ raw: UnsafeMutableRawPointer?) -> UInt8 {
+    guard let box = preferences(raw) else {
+        return 0
+    }
+    return u8(
+        SCPreferencesUnscheduleFromRunLoop(
+            box.value,
+            CFRunLoopGetCurrent(),
+            CFRunLoopMode.defaultMode.rawValue as CFString
+        )
+    )
+}
+
+@_cdecl("sc_preferences_set_dispatch_queue_global")
+public func sc_preferences_set_dispatch_queue_global(_ raw: UnsafeMutableRawPointer?) -> UInt8 {
+    guard let box = preferences(raw) else {
+        return 0
+    }
+    let queue = DispatchQueue(label: "systemconfiguration-rs.preferences")
+    let ok = SCPreferencesSetDispatchQueue(box.value, queue)
+    if ok {
+        box.dispatchQueue = queue
+    }
+    return u8(ok)
+}
+
+@_cdecl("sc_preferences_clear_dispatch_queue")
+public func sc_preferences_clear_dispatch_queue(_ raw: UnsafeMutableRawPointer?) -> UInt8 {
+    guard let box = preferences(raw) else {
+        return 0
+    }
+    let ok = SCPreferencesSetDispatchQueue(box.value, nil)
+    if ok {
+        box.dispatchQueue = nil
+    }
+    return u8(ok)
 }
 
 @_cdecl("sc_preferences_path_create_unique_child")

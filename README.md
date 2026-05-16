@@ -2,27 +2,31 @@
 
 Safe Rust bindings for Apple’s `SystemConfiguration.framework` on macOS.
 
-Version `0.2.0` switches the crate to a `screencapturekit-rs`-style Swift
-bridge: Cargo builds a small SwiftPM static library, Rust owns opaque retained
-handles, and the public API stays ergonomic on the Rust side. If you still need
-low-level C symbols, enable the `raw-ffi` feature.
+Version `0.2.1` continues the `screencapturekit-rs`-style Swift bridge
+introduced in `0.2.0`: Cargo builds a small SwiftPM static library, Rust owns
+opaque retained handles, and the public API stays ergonomic on the Rust side.
+If you still need low-level C symbols, enable the `raw-ffi` feature.
 
 ## Covered areas
 
-`systemconfiguration-rs` now ships safe wrappers for the logical areas requested
-for the `0.2.0` migration:
+`systemconfiguration-rs` now ships safe wrappers for the logical areas covered
+by the `0.2.1` bridge release:
 
 - `DynamicStore`
 - `NetworkConfiguration` overview helpers
+- `NetworkConnection`
 - `Reachability` / `NetworkReachability`
 - `Preferences`
 - `Schema`
 - `NetworkService`
 - `NetworkSet`
 - `NetworkInterface`
+- `BondInterface`
+- `VlanInterface`
 - `NetworkProtocol`
 - `ConsoleUser`
 - `CaptiveNetwork`
+- `SystemConfiguration` error helpers
 
 See [COVERAGE.md](COVERAGE.md) for the per-header audit, including the APIs that
 are still partial or intentionally skipped on macOS.
@@ -71,13 +75,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ## Highlights
 
 - Swift bridge primary implementation with one Swift file per logical area
-- Safe Rust wrappers for property lists, preferences sessions, services, sets,
-  interfaces, protocols, reachability, captive-network helpers, and console-user
-  lookup
+- Safe Rust wrappers for property lists, preferences sessions, dynamic-store
+  callbacks, services, sets, interfaces, bond/VLAN configuration, network
+  connections, reachability, captive-network helpers, console-user lookup, and
+  SystemConfiguration error helpers
 - `raw-ffi` feature preserving direct access to the underlying C APIs already
   declared by the crate
-- 11 numbered examples under `examples/` and 11 per-area smoke tests under
-  `tests/`
+- 11 numbered examples under `examples/` and 12 smoke tests under `tests/`
 
 ## Architecture
 
@@ -115,8 +119,8 @@ Handy entry points:
   these APIs remain wrapped because they are still widely deployed.
 - `CaptiveNetwork` does not wrap `CNCopyCurrentNetworkInfo`, because that API is
   unavailable on modern macOS and generally entitlement-gated.
-- `Schema::catalog()` currently returns a curated high-value subset of
-  `SCSchemaDefinitions.h`; see [COVERAGE.md](COVERAGE.md) for details.
+- `Schema::catalog()` now exposes the full `SCSchemaDefinitions.h` catalog in
+  `SchemaCatalog::all`, while keeping the original curated convenience groups.
 
 ## License
 

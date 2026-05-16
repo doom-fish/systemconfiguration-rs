@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.2.1] - 2026-05-16
+
+### Added
+
+- `NetworkConnection`, `BondInterface`, `BondStatus`, `VlanInterface`, and
+  `SystemConfiguration` safe wrappers for the remaining public macOS families in
+  the audited headers.
+- Advanced `DynamicStore` helpers for callbacks, run-loop sources, dispatch
+  queues, bulk updates, DHCP accessors, and formatted key creation.
+- Advanced `Preferences` helpers for authorization, callbacks, run-loop
+  scheduling, dispatch queues, and type IDs.
+- Full `SCSchemaDefinitions.h` exposure through `SchemaCatalog::all` plus
+  symbol-name lookup helpers.
+
+### Changed
+
+- Closed the final 259 non-exempt coverage gaps in `COVERAGE_AUDIT.md`, taking
+  the audited bridge coverage to 100.00%.
+- Expanded smoke tests and the schema example to validate the new coverage.
+
 ## [0.2.0] - 2026-05-16
 
 ### Changed

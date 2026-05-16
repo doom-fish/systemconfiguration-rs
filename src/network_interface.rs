@@ -14,13 +14,30 @@ pub struct NetworkInterfaceMtuInfo {
     pub maximum: i32,
 }
 
+#[derive(Clone, Debug)]
+pub struct NetworkInterfaceMediaOptions {
+    pub current: Option<PropertyList>,
+    pub active: Option<PropertyList>,
+    pub available: Option<PropertyList>,
+}
+
 impl NetworkInterface {
+    pub fn type_id() -> u64 {
+        unsafe { ffi::network_interface::sc_network_interface_get_type_id() }
+    }
+
     pub fn copy_all() -> Result<Vec<Self>> {
         let raw = unsafe { ffi::network_interface::sc_network_interface_copy_all() };
         if raw.is_null() {
             return Err(SystemConfigurationError::last("sc_network_interface_copy_all"));
         }
         Ok(bridge::take_handle_array(raw, Self::from_owned_handle))
+    }
+
+    pub fn ipv4() -> Result<Self> {
+        let raw = unsafe { ffi::network_interface::sc_network_interface_copy_ipv4() };
+        let raw = bridge::owned_handle_or_last("sc_network_interface_copy_ipv4", raw)?;
+        Ok(Self::from_owned_handle(raw))
     }
 
     pub fn supported_interface_types(&self) -> Vec<String> {
@@ -95,12 +112,105 @@ impl NetworkInterface {
         }))
     }
 
+    pub fn media_options(&self, filter: bool) -> NetworkInterfaceMediaOptions {
+        let current = unsafe {
+            bridge::OwnedHandle::from_raw(ffi::network_interface::sc_network_interface_copy_media_options_current(
+                self.raw.as_ptr(),
+                u8::from(filter),
+            ))
+        }
+        .map(PropertyList::from_owned_handle);
+        let active = unsafe {
+            bridge::OwnedHandle::from_raw(ffi::network_interface::sc_network_interface_copy_media_options_active(
+                self.raw.as_ptr(),
+                u8::from(filter),
+            ))
+        }
+        .map(PropertyList::from_owned_handle);
+        let available = unsafe {
+            bridge::OwnedHandle::from_raw(ffi::network_interface::sc_network_interface_copy_media_options_available(
+                self.raw.as_ptr(),
+                u8::from(filter),
+            ))
+        }
+        .map(PropertyList::from_owned_handle);
+        NetworkInterfaceMediaOptions {
+            current,
+            active,
+            available,
+        }
+    }
+
+    pub fn media_subtypes(available: &PropertyList) -> Vec<String> {
+        bridge::take_string_array(unsafe {
+            ffi::network_interface::sc_network_interface_copy_media_subtypes(available.as_ptr())
+        })
+    }
+
+    pub fn media_subtype_options(available: &PropertyList, subtype: &str) -> Result<Vec<Vec<String>>> {
+        let subtype = bridge::cstring(subtype, "sc_network_interface_copy_media_subtype_options")?;
+        bridge::parse_json(
+            "sc_network_interface_copy_media_subtype_options",
+            unsafe {
+                ffi::network_interface::sc_network_interface_copy_media_subtype_options(
+                    available.as_ptr(),
+                    subtype.as_ptr(),
+                )
+            },
+        )
+    }
+
     pub fn mtu_info(&self) -> Result<Option<NetworkInterfaceMtuInfo>> {
         let raw = unsafe { ffi::network_interface::sc_network_interface_copy_mtu_info(self.raw.as_ptr()) };
         if raw.is_null() {
             return Ok(None);
         }
         bridge::parse_json("sc_network_interface_copy_mtu_info", raw).map(Some)
+    }
+
+    pub fn set_configuration(&self, config: Option<&PropertyList>) -> Result<()> {
+        let ok = unsafe {
+            ffi::network_interface::sc_network_interface_set_configuration(
+                self.raw.as_ptr(),
+                config.map_or(std::ptr::null_mut(), PropertyList::as_ptr),
+            )
+        };
+        bridge::bool_result("sc_network_interface_set_configuration", ok)
+    }
+
+    pub fn set_extended_configuration(
+        &self,
+        extended_type: &str,
+        config: Option<&PropertyList>,
+    ) -> Result<()> {
+        let extended_type = bridge::cstring(extended_type, "sc_network_interface_set_extended_configuration")?;
+        let ok = unsafe {
+            ffi::network_interface::sc_network_interface_set_extended_configuration(
+                self.raw.as_ptr(),
+                extended_type.as_ptr(),
+                config.map_or(std::ptr::null_mut(), PropertyList::as_ptr),
+            )
+        };
+        bridge::bool_result("sc_network_interface_set_extended_configuration", ok)
+    }
+
+    pub fn set_media_options<S: AsRef<str>>(&self, subtype: Option<&str>, options: &[S]) -> Result<()> {
+        let subtype = bridge::optional_cstring(subtype, "sc_network_interface_set_media_options")?;
+        let options = bridge::CStringArray::new(options, "sc_network_interface_set_media_options")?;
+        let ok = unsafe {
+            ffi::network_interface::sc_network_interface_set_media_options(
+                self.raw.as_ptr(),
+                subtype.as_ref().map_or(std::ptr::null(), |value| value.as_ptr()),
+                options.as_ptr(),
+                options.count(),
+            )
+        };
+        bridge::bool_result("sc_network_interface_set_media_options", ok)
+    }
+
+    pub fn set_mtu(&self, mtu: i32) -> Result<()> {
+        let ok = unsafe { ffi::network_interface::sc_network_interface_set_mtu(self.raw.as_ptr(), mtu) };
+        bridge::bool_result("sc_network_interface_set_mtu", ok)
     }
 
     pub fn force_configuration_refresh(&self) -> Result<()> {

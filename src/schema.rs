@@ -6,6 +6,7 @@ use crate::{bridge, error::Result, ffi};
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
 pub struct SchemaCatalog {
+    pub all: BTreeMap<String, String>,
     pub reserved: BTreeMap<String, String>,
     pub preferences: BTreeMap<String, String>,
     pub components: BTreeMap<String, String>,
@@ -16,6 +17,16 @@ pub struct SchemaCatalog {
     pub dns: BTreeMap<String, String>,
     pub proxies: BTreeMap<String, String>,
     pub interface_types: BTreeMap<String, String>,
+}
+
+impl SchemaCatalog {
+    pub fn get(&self, symbol: &str) -> Option<&str> {
+        self.all.get(symbol).map(String::as_str)
+    }
+
+    pub fn contains(&self, symbol: &str) -> bool {
+        self.all.contains_key(symbol)
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default)]

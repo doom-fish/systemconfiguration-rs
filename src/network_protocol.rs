@@ -6,6 +6,10 @@ pub struct NetworkProtocol {
 }
 
 impl NetworkProtocol {
+    pub fn type_id() -> u64 {
+        unsafe { ffi::network_protocol::sc_network_protocol_get_type_id() }
+    }
+
     pub fn configuration(&self) -> Option<PropertyList> {
         unsafe { bridge::OwnedHandle::from_raw(ffi::network_protocol::sc_network_protocol_copy_configuration(self.raw.as_ptr())) }
             .map(PropertyList::from_owned_handle)

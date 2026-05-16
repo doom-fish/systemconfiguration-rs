@@ -2,16 +2,46 @@ import Foundation
 import SystemConfiguration
 import SystemConfiguration.SCDynamicStoreCopyDHCPInfo
 
-final class DynamicStoreBox {
-    let value: SCDynamicStore
+final class DynamicStoreCallbackBox {
+    let callback: RustDynamicStoreCallback
+    let info: UnsafeMutableRawPointer?
 
-    init(_ value: SCDynamicStore) {
-        self.value = value
+    init(callback: @escaping RustDynamicStoreCallback, info: UnsafeMutableRawPointer?) {
+        self.callback = callback
+        self.info = info
     }
 }
 
-private func dynamicStore(_ raw: UnsafeMutableRawPointer?) -> DynamicStoreBox? {
+final class DynamicStoreBox {
+    let value: SCDynamicStore
+    var callbackBox: DynamicStoreCallbackBox?
+    var dispatchQueue: DispatchQueue?
+
+    init(_ value: SCDynamicStore) {
+        self.value = value
+        callbackBox = nil
+        dispatchQueue = nil
+    }
+}
+
+public typealias RustDynamicStoreCallback = @convention(c) (UnsafeMutableRawPointer?, UnsafeMutableRawPointer?) -> Void
+
+func dynamicStore(_ raw: UnsafeMutableRawPointer?) -> DynamicStoreBox? {
     unretained(raw)
+}
+
+func dynamicStoreCallback(
+    _ store: SCDynamicStore,
+    _ changedKeys: CFArray?,
+    _ info: UnsafeMutableRawPointer?
+) {
+    guard let info else {
+        return
+    }
+
+    let callbackBox = Unmanaged<DynamicStoreCallbackBox>.fromOpaque(info).takeUnretainedValue()
+    let strings = (changedKeys as NSArray?)?.map { $0 as? String ?? String(describing: $0) } ?? []
+    callbackBox.callback(boxStrings(strings), callbackBox.info)
 }
 
 @_cdecl("sc_dynamic_store_create")

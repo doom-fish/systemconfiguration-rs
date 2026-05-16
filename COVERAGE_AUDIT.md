@@ -1,14 +1,14 @@
 # systemconfiguration-rs coverage audit (vs MacOSX26.2.sdk)
 
 SDK_PUBLIC_SYMBOLS: 498
-VERIFIED: 203
-GAPS: 259
+VERIFIED: 462
+GAPS: 0
 EXEMPT: 36
-COVERAGE_PCT: 43.94%
+COVERAGE_PCT: 100.00%
 
 This audit parsed the public `SystemConfiguration.framework` headers in `MacOSX26.2.sdk`, filtered out macOS-unavailable declarations, treated macOS-deprecated declarations as EXEMPT, and counted symbols as covered when they are reachable through the safe Swift bridge or the optional `raw-ffi` feature.
 
-The gap count is dominated by long-tail schema constants: `Schema::catalog` currently covers 77/251 non-deprecated `SCSchemaDefinitions.h` constants, leaving 174 schema constants uncovered. Largest remaining uncovered families: SCSchemaDefinitions constants: 174; SCNetworkConnection family: 19; SCBond interface family: 18; SCVLAN interface family: 11; SCDynamicStore advanced helpers: 10.
+All non-exempt public macOS symbols in the audited headers are now surfaced. The final 259 gaps were closed by expanding `Schema::catalog()` to the full `SCSchemaDefinitions.h` catalog and adding the missing `DynamicStore`, `Preferences`, `NetworkConnection`, `BondInterface`, `VlanInterface`, and `SystemConfiguration` helpers.
 
 ## 🟢 VERIFIED
 | Symbol | Kind | Header | Wrapped by |
@@ -216,269 +216,271 @@ The gap count is dominated by long-tail schema constants: `Schema::catalog` curr
 | kSCValNetInterfaceTypePPP | const | SCSchemaDefinitions.h | Schema::catalog |
 | SCError | function | SystemConfiguration.h | SystemConfigurationError; raw_ffi::SCError (feature="raw-ffi") |
 | SCErrorString | function | SystemConfiguration.h | SystemConfigurationError; raw_ffi::SCErrorString (feature="raw-ffi") |
+| --- | --- | --- | Swift bridge safe wrapper |
+| SCDynamicStoreCallBack | typedef | SCDynamicStore.h | DynamicStore closure callback |
+| SCDynamicStoreContext | typedef | SCDynamicStore.h | DynamicStore closure callback |
+| SCDynamicStoreCreateRunLoopSource | function | SCDynamicStore.h | DynamicStore::create_run_loop_source / DynamicStoreRunLoopSource |
+| SCDynamicStoreGetTypeID | function | SCDynamicStore.h | DynamicStore::type_id |
+| SCDynamicStoreSetDispatchQueue | function | SCDynamicStore.h | DynamicStore::set_dispatch_queue_global / clear_dispatch_queue |
+| SCDynamicStoreSetMultiple | function | SCDynamicStore.h | DynamicStore::set_multiple |
+| DHCPInfoGetLeaseExpirationTime | function | SCDynamicStoreCopyDHCPInfo.h | DynamicStore::dhcp_lease_expiration_time |
+| DHCPInfoGetLeaseStartTime | function | SCDynamicStoreCopyDHCPInfo.h | DynamicStore::dhcp_lease_start_time |
+| DHCPInfoGetOptionData | function | SCDynamicStoreCopyDHCPInfo.h | DynamicStore::dhcp_option_data |
+| SCDynamicStoreKeyCreate | function | SCDynamicStoreKey.h | DynamicStore::key_create |
+| SCNetworkConnectionFlags | typedef | SCNetwork.h | NetworkConnectionFlags (= ReachabilityFlags) |
+| SCBondInterfaceCopyAll | function | SCNetworkConfiguration.h | BondInterface::copy_all |
+| SCBondInterfaceCopyAvailableMemberInterfaces | function | SCNetworkConfiguration.h | BondInterface::copy_available_member_interfaces |
+| SCBondInterfaceCopyStatus | function | SCNetworkConfiguration.h | BondInterface::status |
+| SCBondInterfaceCreate | function | SCNetworkConfiguration.h | BondInterface::create |
+| SCBondInterfaceGetMemberInterfaces | function | SCNetworkConfiguration.h | BondInterface::member_interfaces |
+| SCBondInterfaceGetOptions | function | SCNetworkConfiguration.h | BondInterface::options |
+| SCBondInterfaceRef | typedef | SCNetworkConfiguration.h | BondInterface |
+| SCBondInterfaceRemove | function | SCNetworkConfiguration.h | BondInterface::remove |
+| SCBondInterfaceSetLocalizedDisplayName | function | SCNetworkConfiguration.h | BondInterface::set_localized_display_name |
+| SCBondInterfaceSetMemberInterfaces | function | SCNetworkConfiguration.h | BondInterface::set_member_interfaces |
+| SCBondInterfaceSetOptions | function | SCNetworkConfiguration.h | BondInterface::set_options |
+| SCBondStatusGetInterfaceStatus | function | SCNetworkConfiguration.h | BondStatus::interface_status / bond_status |
+| SCBondStatusGetMemberInterfaces | function | SCNetworkConfiguration.h | BondStatus::member_interfaces |
+| SCBondStatusGetTypeID | function | SCNetworkConfiguration.h | BondStatus::type_id |
+| SCBondStatusRef | typedef | SCNetworkConfiguration.h | BondStatus |
+| SCNetworkInterfaceCopyMediaOptions | function | SCNetworkConfiguration.h | NetworkInterface::media_options |
+| SCNetworkInterfaceCopyMediaSubTypeOptions | function | SCNetworkConfiguration.h | NetworkInterface::media_subtype_options |
+| SCNetworkInterfaceCopyMediaSubTypes | function | SCNetworkConfiguration.h | NetworkInterface::media_subtypes |
+| SCNetworkInterfaceGetTypeID | function | SCNetworkConfiguration.h | NetworkInterface::type_id |
+| SCNetworkInterfaceSetConfiguration | function | SCNetworkConfiguration.h | NetworkInterface::set_configuration |
+| SCNetworkInterfaceSetExtendedConfiguration | function | SCNetworkConfiguration.h | NetworkInterface::set_extended_configuration |
+| SCNetworkInterfaceSetMTU | function | SCNetworkConfiguration.h | NetworkInterface::set_mtu |
+| SCNetworkInterfaceSetMediaOptions | function | SCNetworkConfiguration.h | NetworkInterface::set_media_options |
+| SCNetworkProtocolGetTypeID | function | SCNetworkConfiguration.h | NetworkProtocol::type_id |
+| SCNetworkServiceCopy | function | SCNetworkConfiguration.h | NetworkService::copy |
+| SCNetworkServiceCreate | function | SCNetworkConfiguration.h | NetworkService::create |
+| SCNetworkServiceGetTypeID | function | SCNetworkConfiguration.h | NetworkService::type_id |
+| SCNetworkSetCopy | function | SCNetworkConfiguration.h | NetworkSet::copy |
+| SCNetworkSetCreate | function | SCNetworkConfiguration.h | NetworkSet::create |
+| SCNetworkSetGetTypeID | function | SCNetworkConfiguration.h | NetworkSet::type_id |
+| SCVLANInterfaceCopyAll | function | SCNetworkConfiguration.h | VlanInterface::copy_all |
+| SCVLANInterfaceCopyAvailablePhysicalInterfaces | function | SCNetworkConfiguration.h | VlanInterface::copy_available_physical_interfaces |
+| SCVLANInterfaceCreate | function | SCNetworkConfiguration.h | VlanInterface::create |
+| SCVLANInterfaceGetOptions | function | SCNetworkConfiguration.h | VlanInterface::options |
+| SCVLANInterfaceGetPhysicalInterface | function | SCNetworkConfiguration.h | VlanInterface::physical_interface |
+| SCVLANInterfaceGetTag | function | SCNetworkConfiguration.h | VlanInterface::tag |
+| SCVLANInterfaceRef | typedef | SCNetworkConfiguration.h | VlanInterface |
+| SCVLANInterfaceRemove | function | SCNetworkConfiguration.h | VlanInterface::remove |
+| SCVLANInterfaceSetLocalizedDisplayName | function | SCNetworkConfiguration.h | VlanInterface::set_localized_display_name |
+| SCVLANInterfaceSetOptions | function | SCNetworkConfiguration.h | VlanInterface::set_options |
+| SCVLANInterfaceSetPhysicalInterfaceAndTag | function | SCNetworkConfiguration.h | VlanInterface::set_physical_interface_and_tag |
+| kSCBondStatusDeviceAggregationStatus | const | SCNetworkConfiguration.h | BondStatus::device_aggregation_status_key |
+| kSCBondStatusDeviceCollecting | const | SCNetworkConfiguration.h | BondStatus::device_collecting_key |
+| kSCBondStatusDeviceDistributing | const | SCNetworkConfiguration.h | BondStatus::device_distributing_key |
+| kSCNetworkInterfaceIPv4 | const | SCNetworkConfiguration.h | NetworkInterface::ipv4 |
+| SCNetworkConnectionCallBack | typedef | SCNetworkConnection.h | NetworkConnection callback closure |
+| SCNetworkConnectionContext | typedef | SCNetworkConnection.h | NetworkConnection callback closure |
+| SCNetworkConnectionCopyExtendedStatus | function | SCNetworkConnection.h | NetworkConnection::extended_status |
+| SCNetworkConnectionCopyServiceID | function | SCNetworkConnection.h | NetworkConnection::service_id |
+| SCNetworkConnectionCopyStatistics | function | SCNetworkConnection.h | NetworkConnection::statistics |
+| SCNetworkConnectionCopyUserOptions | function | SCNetworkConnection.h | NetworkConnection::user_options |
+| SCNetworkConnectionCopyUserPreferences | function | SCNetworkConnection.h | NetworkConnection::copy_user_preferences |
+| SCNetworkConnectionCreateWithServiceID | function | SCNetworkConnection.h | NetworkConnection::with_service_id |
+| SCNetworkConnectionGetStatus | function | SCNetworkConnection.h | NetworkConnection::status / NetworkConnectionStatus |
+| SCNetworkConnectionGetTypeID | function | SCNetworkConnection.h | NetworkConnection::type_id |
+| SCNetworkConnectionPPPStatus | typedef | SCNetworkConnection.h | NetworkConnectionPppStatus |
+| SCNetworkConnectionRef | typedef | SCNetworkConnection.h | NetworkConnection |
+| SCNetworkConnectionScheduleWithRunLoop | function | SCNetworkConnection.h | NetworkConnection::schedule_with_run_loop_current |
+| SCNetworkConnectionSetDispatchQueue | function | SCNetworkConnection.h | NetworkConnection::set_dispatch_queue_global / clear_dispatch_queue |
+| SCNetworkConnectionStart | function | SCNetworkConnection.h | NetworkConnection::start |
+| SCNetworkConnectionStatus | typedef | SCNetworkConnection.h | NetworkConnectionStatus |
+| SCNetworkConnectionStop | function | SCNetworkConnection.h | NetworkConnection::stop |
+| SCNetworkConnectionUnscheduleFromRunLoop | function | SCNetworkConnection.h | NetworkConnection::unschedule_from_run_loop_current |
+| SCPreferencesCallBack | typedef | SCPreferences.h | Preferences callback closure |
+| SCPreferencesContext | typedef | SCPreferences.h | Preferences callback closure |
+| SCPreferencesCreateWithAuthorization | function | SCPreferences.h | Preferences::new_with_authorization / new_with_authorization_raw |
+| SCPreferencesGetTypeID | function | SCPreferences.h | Preferences::type_id |
+| SCPreferencesNotification | typedef | SCPreferences.h | PreferencesNotification |
+| SCPreferencesScheduleWithRunLoop | function | SCPreferences.h | Preferences::schedule_with_run_loop_current |
+| SCPreferencesSetCallback | function | SCPreferences.h | Preferences::set_callback / clear_callback |
+| SCPreferencesSetDispatchQueue | function | SCPreferences.h | Preferences::set_dispatch_queue_global / clear_dispatch_queue |
+| SCPreferencesUnscheduleFromRunLoop | function | SCPreferences.h | Preferences::unschedule_from_run_loop_current |
+| kSCDynamicStoreDomainFile | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCDynamicStoreDomainPlugin | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCDynamicStoreDomainPrefs | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCDynamicStoreDomainSetup | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCDynamicStoreDomainState | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCDynamicStorePropNetInterfaces | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCDynamicStorePropNetPrimaryInterface | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCDynamicStorePropNetPrimaryService | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCDynamicStorePropNetServiceIDs | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCDynamicStorePropSetupCurrentSet | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCDynamicStorePropSetupLastUpdated | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCEntNetFireWire | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCEntNetPPPSerial | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCEntUsersConsoleUser | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNet6to4Relay | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetDNSSearchOrder | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetDNSServerTimeout | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetDNSSortList | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetDNSSupplementalMatchDomains | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetDNSSupplementalMatchOrders | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetEthernetMTU | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetEthernetMediaOptions | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetEthernetMediaSubType | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetIPSecAuthenticationMethod | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetIPSecConnectTime | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetIPSecLocalCertificate | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetIPSecLocalIdentifier | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetIPSecLocalIdentifierType | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetIPSecRemoteAddress | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetIPSecSharedSecret | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetIPSecSharedSecretEncryption | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetIPSecStatus | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetIPSecXAuthEnabled | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetIPSecXAuthName | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetIPSecXAuthPassword | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetIPSecXAuthPasswordEncryption | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetIPv4BroadcastAddresses | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetIPv4DestAddresses | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetIPv6DestAddresses | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetIPv6Flags | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetIPv6PrefixLength | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetInterfaceDeviceName | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetInterfaceHardware | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetInterfaceSubType | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetInterfaceType | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetInterfaces | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetL2TPIPSecSharedSecret | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetL2TPIPSecSharedSecretEncryption | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetL2TPTransport | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetLinkActive | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetLinkDetaching | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetLocalHostName | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetModemAccessPointName | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetModemConnectSpeed | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetModemConnectionPersonality | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetModemConnectionScript | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetModemDataCompression | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetModemDeviceContextID | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetModemDeviceModel | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetModemDeviceVendor | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetModemDialMode | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetModemErrorCorrection | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetModemHoldCallWaitingAudibleAlert | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetModemHoldDisconnectOnAnswer | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetModemHoldEnabled | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetModemHoldReminder | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetModemHoldReminderTime | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetModemNote | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetModemPulseDial | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetModemSpeaker | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetModemSpeed | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetOverridePrimary | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPACSPEnabled | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPAuthName | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPAuthPassword | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPAuthPasswordEncryption | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPAuthPrompt | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPAuthProtocol | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPCCPEnabled | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPCCPMPPE128Enabled | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPCCPMPPE40Enabled | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPCommAlternateRemoteAddress | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPCommConnectDelay | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPCommDisplayTerminalWindow | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPCommRedialCount | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPCommRedialEnabled | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPCommRedialInterval | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPCommRemoteAddress | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPCommTerminalScript | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPCommUseTerminalScript | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPConnectTime | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPDeviceLastCause | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPDialOnDemand | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPDisconnectOnFastUserSwitch | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPDisconnectOnIdle | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPDisconnectOnIdleTimer | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPDisconnectOnLogout | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPDisconnectOnSleep | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPDisconnectTime | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPIPCPCompressionVJ | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPIPCPUsePeerDNS | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPIdleReminder | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPIdleReminderTimer | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPLCPCompressionACField | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPLCPCompressionPField | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPLCPEchoEnabled | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPLCPEchoFailure | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPLCPEchoInterval | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPLCPMRU | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPLCPMTU | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPLCPReceiveACCM | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPLCPTransmitACCM | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPLastCause | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPLogfile | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPOverridePrimary | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPRetryConnectTime | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPSessionTimer | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPStatus | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPUseSessionTimer | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetPPPVerboseLogging | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetProxiesExcludeSimpleHostnames | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetProxiesFTPEnable | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetProxiesFTPPassive | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetProxiesFTPPort | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetProxiesFTPProxy | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetProxiesFTPUser | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetProxiesGopherEnable | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetProxiesGopherPort | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetProxiesGopherProxy | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetProxiesGopherUser | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetProxiesHTTPSUser | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetProxiesHTTPUser | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetProxiesProxyAutoConfigEnable | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetProxiesProxyAutoConfigJavaScript | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetProxiesProxyAutoConfigURLString | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetProxiesProxyAutoDiscoveryEnable | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetProxiesRTSPEnable | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetProxiesRTSPPort | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetProxiesRTSPProxy | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetProxiesRTSPUser | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetProxiesSOCKSUser | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetSMBNetBIOSName | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetSMBNetBIOSNodeType | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetSMBWINSAddresses | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetSMBWorkgroup | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropNetServiceOrder | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropSystemComputerName | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCPropSystemComputerNameEncoding | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCValNetIPSecAuthenticationMethodCertificate | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCValNetIPSecAuthenticationMethodHybrid | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCValNetIPSecAuthenticationMethodSharedSecret | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCValNetIPSecLocalIdentifierTypeKeyID | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCValNetIPSecSharedSecretEncryptionKeychain | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCValNetIPSecXAuthPasswordEncryptionKeychain | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCValNetIPSecXAuthPasswordEncryptionPrompt | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCValNetL2TPIPSecSharedSecretEncryptionKeychain | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCValNetL2TPTransportIP | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCValNetL2TPTransportIPSec | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCValNetModemDialModeIgnoreDialTone | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCValNetModemDialModeManual | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCValNetModemDialModeWaitForDialTone | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCValNetPPPAuthPasswordEncryptionKeychain | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCValNetPPPAuthPasswordEncryptionToken | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCValNetPPPAuthPromptAfter | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCValNetPPPAuthPromptBefore | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCValNetPPPAuthProtocolCHAP | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCValNetPPPAuthProtocolEAP | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCValNetPPPAuthProtocolMSCHAP1 | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCValNetPPPAuthProtocolMSCHAP2 | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCValNetPPPAuthProtocolPAP | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCValNetSMBNetBIOSNodeTypeBroadcast | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCValNetSMBNetBIOSNodeTypeHybrid | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCValNetSMBNetBIOSNodeTypeMixed | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| kSCValNetSMBNetBIOSNodeTypePeer | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
+| SCCopyLastError | function | SystemConfiguration.h | SystemConfiguration::copy_last_error |
+| kCFErrorDomainSystemConfiguration | const | SystemConfiguration.h | SystemConfiguration::error_domain |
 
 ## 🔴 GAPS
 | Symbol | Kind | Header | Notes |
 | --- | --- | --- | --- |
-| SCDynamicStoreCallBack | typedef | SCDynamicStore.h | Callback/run-loop/TypeID helpers are not wrapped. |
-| SCDynamicStoreContext | typedef | SCDynamicStore.h | Callback/run-loop/TypeID helpers are not wrapped. |
-| SCDynamicStoreCreateRunLoopSource | function | SCDynamicStore.h | Callback/run-loop/TypeID helpers are not wrapped. |
-| SCDynamicStoreGetTypeID | function | SCDynamicStore.h | Callback/run-loop/TypeID helpers are not wrapped. |
-| SCDynamicStoreSetDispatchQueue | function | SCDynamicStore.h | Callback/run-loop/TypeID helpers are not wrapped. |
-| SCDynamicStoreSetMultiple | function | SCDynamicStore.h | Callback/run-loop/TypeID helpers are not wrapped. |
-| DHCPInfoGetLeaseExpirationTime | function | SCDynamicStoreCopyDHCPInfo.h | Only SCDynamicStoreCopyDHCPInfo is wrapped; the DHCPInfo accessor helpers are not. |
-| DHCPInfoGetLeaseStartTime | function | SCDynamicStoreCopyDHCPInfo.h | Only SCDynamicStoreCopyDHCPInfo is wrapped; the DHCPInfo accessor helpers are not. |
-| DHCPInfoGetOptionData | function | SCDynamicStoreCopyDHCPInfo.h | Only SCDynamicStoreCopyDHCPInfo is wrapped; the DHCPInfo accessor helpers are not. |
-| SCDynamicStoreKeyCreate | function | SCDynamicStoreKey.h | Callback/run-loop/TypeID helpers are not wrapped. |
-| SCNetworkConnectionFlags | typedef | SCNetwork.h | The SCNetworkConnection session/control family is entirely absent. |
-| SCBondInterfaceCopyAll | function | SCNetworkConfiguration.h | The bond-interface family is not wrapped. |
-| SCBondInterfaceCopyAvailableMemberInterfaces | function | SCNetworkConfiguration.h | The bond-interface family is not wrapped. |
-| SCBondInterfaceCopyStatus | function | SCNetworkConfiguration.h | The bond-interface family is not wrapped. |
-| SCBondInterfaceCreate | function | SCNetworkConfiguration.h | The bond-interface family is not wrapped. |
-| SCBondInterfaceGetMemberInterfaces | function | SCNetworkConfiguration.h | The bond-interface family is not wrapped. |
-| SCBondInterfaceGetOptions | function | SCNetworkConfiguration.h | The bond-interface family is not wrapped. |
-| SCBondInterfaceRef | typedef | SCNetworkConfiguration.h | The bond-interface family is not wrapped. |
-| SCBondInterfaceRemove | function | SCNetworkConfiguration.h | The bond-interface family is not wrapped. |
-| SCBondInterfaceSetLocalizedDisplayName | function | SCNetworkConfiguration.h | The bond-interface family is not wrapped. |
-| SCBondInterfaceSetMemberInterfaces | function | SCNetworkConfiguration.h | The bond-interface family is not wrapped. |
-| SCBondInterfaceSetOptions | function | SCNetworkConfiguration.h | The bond-interface family is not wrapped. |
-| SCBondStatusGetInterfaceStatus | function | SCNetworkConfiguration.h | The bond-interface family is not wrapped. |
-| SCBondStatusGetMemberInterfaces | function | SCNetworkConfiguration.h | The bond-interface family is not wrapped. |
-| SCBondStatusGetTypeID | function | SCNetworkConfiguration.h | The bond-interface family is not wrapped. |
-| SCBondStatusRef | typedef | SCNetworkConfiguration.h | The bond-interface family is not wrapped. |
-| SCNetworkInterfaceCopyMediaOptions | function | SCNetworkConfiguration.h | Advanced interface configuration helpers are not wrapped. |
-| SCNetworkInterfaceCopyMediaSubTypeOptions | function | SCNetworkConfiguration.h | Advanced interface configuration helpers are not wrapped. |
-| SCNetworkInterfaceCopyMediaSubTypes | function | SCNetworkConfiguration.h | Advanced interface configuration helpers are not wrapped. |
-| SCNetworkInterfaceGetTypeID | function | SCNetworkConfiguration.h | Advanced interface configuration helpers are not wrapped. |
-| SCNetworkInterfaceSetConfiguration | function | SCNetworkConfiguration.h | Advanced interface configuration helpers are not wrapped. |
-| SCNetworkInterfaceSetExtendedConfiguration | function | SCNetworkConfiguration.h | Advanced interface configuration helpers are not wrapped. |
-| SCNetworkInterfaceSetMTU | function | SCNetworkConfiguration.h | Advanced interface configuration helpers are not wrapped. |
-| SCNetworkInterfaceSetMediaOptions | function | SCNetworkConfiguration.h | Advanced interface configuration helpers are not wrapped. |
-| SCNetworkProtocolGetTypeID | function | SCNetworkConfiguration.h | The protocol type-ID helper is not wrapped. |
-| SCNetworkServiceCopy | function | SCNetworkConfiguration.h | Service creation/copy/type-ID helpers are not wrapped. |
-| SCNetworkServiceCreate | function | SCNetworkConfiguration.h | Service creation/copy/type-ID helpers are not wrapped. |
-| SCNetworkServiceGetTypeID | function | SCNetworkConfiguration.h | Service creation/copy/type-ID helpers are not wrapped. |
-| SCNetworkSetCopy | function | SCNetworkConfiguration.h | Set creation/copy/type-ID helpers are not wrapped. |
-| SCNetworkSetCreate | function | SCNetworkConfiguration.h | Set creation/copy/type-ID helpers are not wrapped. |
-| SCNetworkSetGetTypeID | function | SCNetworkConfiguration.h | Set creation/copy/type-ID helpers are not wrapped. |
-| SCVLANInterfaceCopyAll | function | SCNetworkConfiguration.h | The VLAN-interface family is not wrapped. |
-| SCVLANInterfaceCopyAvailablePhysicalInterfaces | function | SCNetworkConfiguration.h | The VLAN-interface family is not wrapped. |
-| SCVLANInterfaceCreate | function | SCNetworkConfiguration.h | The VLAN-interface family is not wrapped. |
-| SCVLANInterfaceGetOptions | function | SCNetworkConfiguration.h | The VLAN-interface family is not wrapped. |
-| SCVLANInterfaceGetPhysicalInterface | function | SCNetworkConfiguration.h | The VLAN-interface family is not wrapped. |
-| SCVLANInterfaceGetTag | function | SCNetworkConfiguration.h | The VLAN-interface family is not wrapped. |
-| SCVLANInterfaceRef | typedef | SCNetworkConfiguration.h | The VLAN-interface family is not wrapped. |
-| SCVLANInterfaceRemove | function | SCNetworkConfiguration.h | The VLAN-interface family is not wrapped. |
-| SCVLANInterfaceSetLocalizedDisplayName | function | SCNetworkConfiguration.h | The VLAN-interface family is not wrapped. |
-| SCVLANInterfaceSetOptions | function | SCNetworkConfiguration.h | The VLAN-interface family is not wrapped. |
-| SCVLANInterfaceSetPhysicalInterfaceAndTag | function | SCNetworkConfiguration.h | The VLAN-interface family is not wrapped. |
-| kSCBondStatusDeviceAggregationStatus | const | SCNetworkConfiguration.h | The bond-interface family is not wrapped. |
-| kSCBondStatusDeviceCollecting | const | SCNetworkConfiguration.h | The bond-interface family is not wrapped. |
-| kSCBondStatusDeviceDistributing | const | SCNetworkConfiguration.h | The bond-interface family is not wrapped. |
-| kSCNetworkInterfaceIPv4 | const | SCNetworkConfiguration.h | This network-interface constant is not surfaced. |
-| SCNetworkConnectionCallBack | typedef | SCNetworkConnection.h | The SCNetworkConnection session/control family is entirely absent. |
-| SCNetworkConnectionContext | typedef | SCNetworkConnection.h | The SCNetworkConnection session/control family is entirely absent. |
-| SCNetworkConnectionCopyExtendedStatus | function | SCNetworkConnection.h | The SCNetworkConnection session/control family is entirely absent. |
-| SCNetworkConnectionCopyServiceID | function | SCNetworkConnection.h | The SCNetworkConnection session/control family is entirely absent. |
-| SCNetworkConnectionCopyStatistics | function | SCNetworkConnection.h | The SCNetworkConnection session/control family is entirely absent. |
-| SCNetworkConnectionCopyUserOptions | function | SCNetworkConnection.h | The SCNetworkConnection session/control family is entirely absent. |
-| SCNetworkConnectionCopyUserPreferences | function | SCNetworkConnection.h | The SCNetworkConnection session/control family is entirely absent. |
-| SCNetworkConnectionCreateWithServiceID | function | SCNetworkConnection.h | The SCNetworkConnection session/control family is entirely absent. |
-| SCNetworkConnectionGetStatus | function | SCNetworkConnection.h | The SCNetworkConnection session/control family is entirely absent. |
-| SCNetworkConnectionGetTypeID | function | SCNetworkConnection.h | The SCNetworkConnection session/control family is entirely absent. |
-| SCNetworkConnectionPPPStatus | typedef | SCNetworkConnection.h | The SCNetworkConnection session/control family is entirely absent. |
-| SCNetworkConnectionRef | typedef | SCNetworkConnection.h | The SCNetworkConnection session/control family is entirely absent. |
-| SCNetworkConnectionScheduleWithRunLoop | function | SCNetworkConnection.h | The SCNetworkConnection session/control family is entirely absent. |
-| SCNetworkConnectionSetDispatchQueue | function | SCNetworkConnection.h | The SCNetworkConnection session/control family is entirely absent. |
-| SCNetworkConnectionStart | function | SCNetworkConnection.h | The SCNetworkConnection session/control family is entirely absent. |
-| SCNetworkConnectionStatus | typedef | SCNetworkConnection.h | The SCNetworkConnection session/control family is entirely absent. |
-| SCNetworkConnectionStop | function | SCNetworkConnection.h | The SCNetworkConnection session/control family is entirely absent. |
-| SCNetworkConnectionUnscheduleFromRunLoop | function | SCNetworkConnection.h | The SCNetworkConnection session/control family is entirely absent. |
-| SCPreferencesCallBack | typedef | SCPreferences.h | Authorization/callback/dispatch helpers are not wrapped. |
-| SCPreferencesContext | typedef | SCPreferences.h | Authorization/callback/dispatch helpers are not wrapped. |
-| SCPreferencesCreateWithAuthorization | function | SCPreferences.h | Authorization/callback/dispatch helpers are not wrapped. |
-| SCPreferencesGetTypeID | function | SCPreferences.h | Authorization/callback/dispatch helpers are not wrapped. |
-| SCPreferencesNotification | typedef | SCPreferences.h | Authorization/callback/dispatch helpers are not wrapped. |
-| SCPreferencesScheduleWithRunLoop | function | SCPreferences.h | Authorization/callback/dispatch helpers are not wrapped. |
-| SCPreferencesSetCallback | function | SCPreferences.h | Authorization/callback/dispatch helpers are not wrapped. |
-| SCPreferencesSetDispatchQueue | function | SCPreferences.h | Authorization/callback/dispatch helpers are not wrapped. |
-| SCPreferencesUnscheduleFromRunLoop | function | SCPreferences.h | Authorization/callback/dispatch helpers are not wrapped. |
-| kSCDynamicStoreDomainFile | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCDynamicStoreDomainPlugin | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCDynamicStoreDomainPrefs | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCDynamicStoreDomainSetup | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCDynamicStoreDomainState | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCDynamicStorePropNetInterfaces | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCDynamicStorePropNetPrimaryInterface | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCDynamicStorePropNetPrimaryService | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCDynamicStorePropNetServiceIDs | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCDynamicStorePropSetupCurrentSet | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCDynamicStorePropSetupLastUpdated | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCEntNetFireWire | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCEntNetPPPSerial | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCEntUsersConsoleUser | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNet6to4Relay | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetDNSSearchOrder | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetDNSServerTimeout | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetDNSSortList | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetDNSSupplementalMatchDomains | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetDNSSupplementalMatchOrders | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetEthernetMTU | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetEthernetMediaOptions | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetEthernetMediaSubType | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetIPSecAuthenticationMethod | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetIPSecConnectTime | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetIPSecLocalCertificate | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetIPSecLocalIdentifier | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetIPSecLocalIdentifierType | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetIPSecRemoteAddress | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetIPSecSharedSecret | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetIPSecSharedSecretEncryption | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetIPSecStatus | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetIPSecXAuthEnabled | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetIPSecXAuthName | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetIPSecXAuthPassword | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetIPSecXAuthPasswordEncryption | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetIPv4BroadcastAddresses | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetIPv4DestAddresses | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetIPv6DestAddresses | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetIPv6Flags | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetIPv6PrefixLength | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetInterfaceDeviceName | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetInterfaceHardware | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetInterfaceSubType | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetInterfaceType | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetInterfaces | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetL2TPIPSecSharedSecret | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetL2TPIPSecSharedSecretEncryption | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetL2TPTransport | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetLinkActive | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetLinkDetaching | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetLocalHostName | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetModemAccessPointName | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetModemConnectSpeed | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetModemConnectionPersonality | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetModemConnectionScript | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetModemDataCompression | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetModemDeviceContextID | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetModemDeviceModel | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetModemDeviceVendor | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetModemDialMode | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetModemErrorCorrection | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetModemHoldCallWaitingAudibleAlert | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetModemHoldDisconnectOnAnswer | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetModemHoldEnabled | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetModemHoldReminder | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetModemHoldReminderTime | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetModemNote | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetModemPulseDial | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetModemSpeaker | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetModemSpeed | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetOverridePrimary | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPACSPEnabled | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPAuthName | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPAuthPassword | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPAuthPasswordEncryption | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPAuthPrompt | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPAuthProtocol | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPCCPEnabled | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPCCPMPPE128Enabled | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPCCPMPPE40Enabled | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPCommAlternateRemoteAddress | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPCommConnectDelay | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPCommDisplayTerminalWindow | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPCommRedialCount | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPCommRedialEnabled | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPCommRedialInterval | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPCommRemoteAddress | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPCommTerminalScript | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPCommUseTerminalScript | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPConnectTime | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPDeviceLastCause | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPDialOnDemand | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPDisconnectOnFastUserSwitch | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPDisconnectOnIdle | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPDisconnectOnIdleTimer | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPDisconnectOnLogout | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPDisconnectOnSleep | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPDisconnectTime | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPIPCPCompressionVJ | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPIPCPUsePeerDNS | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPIdleReminder | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPIdleReminderTimer | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPLCPCompressionACField | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPLCPCompressionPField | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPLCPEchoEnabled | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPLCPEchoFailure | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPLCPEchoInterval | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPLCPMRU | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPLCPMTU | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPLCPReceiveACCM | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPLCPTransmitACCM | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPLastCause | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPLogfile | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPOverridePrimary | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPRetryConnectTime | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPSessionTimer | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPStatus | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPUseSessionTimer | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetPPPVerboseLogging | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetProxiesExcludeSimpleHostnames | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetProxiesFTPEnable | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetProxiesFTPPassive | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetProxiesFTPPort | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetProxiesFTPProxy | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetProxiesFTPUser | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetProxiesGopherEnable | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetProxiesGopherPort | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetProxiesGopherProxy | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetProxiesGopherUser | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetProxiesHTTPSUser | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetProxiesHTTPUser | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetProxiesProxyAutoConfigEnable | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetProxiesProxyAutoConfigJavaScript | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetProxiesProxyAutoConfigURLString | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetProxiesProxyAutoDiscoveryEnable | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetProxiesRTSPEnable | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetProxiesRTSPPort | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetProxiesRTSPProxy | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetProxiesRTSPUser | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetProxiesSOCKSUser | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetSMBNetBIOSName | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetSMBNetBIOSNodeType | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetSMBWINSAddresses | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetSMBWorkgroup | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropNetServiceOrder | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropSystemComputerName | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCPropSystemComputerNameEncoding | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCValNetIPSecAuthenticationMethodCertificate | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCValNetIPSecAuthenticationMethodHybrid | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCValNetIPSecAuthenticationMethodSharedSecret | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCValNetIPSecLocalIdentifierTypeKeyID | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCValNetIPSecSharedSecretEncryptionKeychain | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCValNetIPSecXAuthPasswordEncryptionKeychain | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCValNetIPSecXAuthPasswordEncryptionPrompt | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCValNetL2TPIPSecSharedSecretEncryptionKeychain | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCValNetL2TPTransportIP | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCValNetL2TPTransportIPSec | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCValNetModemDialModeIgnoreDialTone | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCValNetModemDialModeManual | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCValNetModemDialModeWaitForDialTone | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCValNetPPPAuthPasswordEncryptionKeychain | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCValNetPPPAuthPasswordEncryptionToken | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCValNetPPPAuthPromptAfter | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCValNetPPPAuthPromptBefore | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCValNetPPPAuthProtocolCHAP | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCValNetPPPAuthProtocolEAP | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCValNetPPPAuthProtocolMSCHAP1 | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCValNetPPPAuthProtocolMSCHAP2 | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCValNetPPPAuthProtocolPAP | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCValNetSMBNetBIOSNodeTypeBroadcast | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCValNetSMBNetBIOSNodeTypeHybrid | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCValNetSMBNetBIOSNodeTypeMixed | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| kSCValNetSMBNetBIOSNodeTypePeer | const | SCSchemaDefinitions.h | Schema::catalog exposes a curated subset; this constant is not surfaced. |
-| SCCopyLastError | function | SystemConfiguration.h | CFError-domain helpers are not exposed by the crate. |
-| kCFErrorDomainSystemConfiguration | const | SystemConfiguration.h | CFError-domain helpers are not exposed by the crate. |
+| _None_ | - | - | All non-exempt public macOS symbols in the audited headers are now surfaced via the safe bridge and/or the optional `raw-ffi` layer. |
 
 ## ⏭️ EXEMPT
 | Symbol | Kind | Header | Reason | SDK attribute |

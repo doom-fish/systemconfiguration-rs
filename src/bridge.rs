@@ -88,6 +88,32 @@ impl CStringArray {
     }
 }
 
+pub(crate) struct HandleArray {
+    handles: Vec<RawHandle>,
+}
+
+impl HandleArray {
+    pub(crate) fn new<T, F>(values: &[T], mut map: F) -> Self
+    where
+        F: FnMut(&T) -> RawHandle,
+    {
+        let handles = values.iter().map(&mut map).collect();
+        Self { handles }
+    }
+
+    pub(crate) fn as_ptr(&self) -> *const RawHandle {
+        if self.handles.is_empty() {
+            std::ptr::null()
+        } else {
+            self.handles.as_ptr()
+        }
+    }
+
+    pub(crate) fn count(&self) -> isize {
+        isize::try_from(self.handles.len()).expect("handle array length exceeded isize")
+    }
+}
+
 fn read_string(raw: RawHandle) -> String {
     let len = unsafe { ffi::core::sc_string_len(raw) };
     let len = usize::try_from(len).expect("negative Swift string length");

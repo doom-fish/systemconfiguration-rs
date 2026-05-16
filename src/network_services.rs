@@ -13,9 +13,29 @@ pub struct NetworkService {
 }
 
 impl NetworkService {
+    pub fn type_id() -> u64 {
+        unsafe { ffi::network_services::sc_network_service_get_type_id() }
+    }
+
     pub fn copy_all(preferences: &Preferences) -> Vec<Self> {
         let raw = unsafe { ffi::network_services::sc_network_service_copy_all(preferences.as_ptr()) };
         bridge::take_handle_array(raw, Self::from_owned_handle)
+    }
+
+    pub fn create(preferences: &Preferences, interface: &NetworkInterface) -> Result<Self> {
+        let raw = unsafe {
+            ffi::network_services::sc_network_service_create(preferences.as_ptr(), interface.as_ptr())
+        };
+        let raw = bridge::owned_handle_or_last("sc_network_service_create", raw)?;
+        Ok(Self { raw })
+    }
+
+    pub fn copy(preferences: &Preferences, service_id: &str) -> Result<Option<Self>> {
+        let service_id = bridge::cstring(service_id, "sc_network_service_copy")?;
+        let raw = unsafe {
+            ffi::network_services::sc_network_service_copy(preferences.as_ptr(), service_id.as_ptr())
+        };
+        Ok(unsafe { bridge::OwnedHandle::from_raw(raw) }.map(Self::from_owned_handle))
     }
 
     pub fn copy_protocols(&self) -> Vec<NetworkProtocol> {
