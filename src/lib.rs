@@ -16,24 +16,44 @@
 #[cfg(not(target_os = "macos"))]
 compile_error!("systemconfiguration only supports macOS");
 
-mod cf;
+mod bridge;
+mod captive_network;
+mod console_user;
 mod dynamic_store;
 mod error;
 mod ffi;
+mod network_configuration;
 mod network_interface;
+mod network_protocol;
+mod network_reachability;
+mod network_services;
+mod network_sets;
 mod preferences;
-mod reachability;
+mod property_list;
+mod schema;
 
-pub use cf::PropertyList;
+pub use captive_network::CaptiveNetwork;
+pub use console_user::ConsoleUser;
 pub use dynamic_store::DynamicStore;
 pub use error::{Result, SystemConfigurationError};
+pub use network_configuration::{NetworkConfiguration, NetworkConfigurationOverview};
 pub use network_interface::NetworkInterface;
-pub use preferences::{NetworkService, Preferences};
-pub use reachability::{Reachability, ReachabilityFlags};
+pub use network_protocol::NetworkProtocol;
+pub use network_reachability::{NetworkReachability, Reachability, ReachabilityFlags};
+pub use network_services::NetworkService;
+pub use network_sets::NetworkSet;
+pub use preferences::Preferences;
+pub use property_list::PropertyList;
+pub use schema::{Schema, SchemaCatalog};
+
+#[cfg(feature = "raw-ffi")]
+pub mod raw_ffi;
 
 pub mod prelude {
     pub use crate::{
-        DynamicStore, NetworkInterface, NetworkService, Preferences, PropertyList, Reachability,
-        ReachabilityFlags, Result, SystemConfigurationError,
+        CaptiveNetwork, ConsoleUser, DynamicStore, NetworkConfiguration, NetworkConfigurationOverview,
+        NetworkInterface, NetworkProtocol, NetworkReachability, NetworkService, NetworkSet,
+        Preferences, PropertyList, Reachability, ReachabilityFlags, Result, Schema,
+        SchemaCatalog, SystemConfigurationError,
     };
 }

@@ -1,6 +1,6 @@
-use std::{error::Error, ffi::CStr, fmt};
+use std::{error::Error, fmt};
 
-use crate::ffi;
+use crate::{bridge, ffi};
 
 pub type Result<T> = std::result::Result<T, SystemConfigurationError>;
 
@@ -21,16 +21,9 @@ impl SystemConfigurationError {
     }
 
     pub(crate) fn last(function: &'static str) -> Self {
-        let code = unsafe { ffi::SCError() };
-        let message = unsafe {
-            let raw = ffi::SCErrorString(code);
-            if raw.is_null() {
-                format!("SystemConfiguration returned error code {code}")
-            } else {
-                CStr::from_ptr(raw).to_string_lossy().into_owned()
-            }
-        };
-
+        let code = unsafe { ffi::core::sc_last_error_code() };
+        let message = bridge::take_optional_string(unsafe { ffi::core::sc_last_error_message() })
+            .unwrap_or_else(|| format!("SystemConfiguration returned error code {code}"));
         Self::new(function, code, message)
     }
 

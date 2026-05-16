@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.2.0] - 2026-05-16
+
+### Changed
+
+- Replaced the old direct-first C FFI architecture with a SwiftPM-built bridge
+  patterned after `screencapturekit-rs`.
+- Moved the primary macOS implementation behind per-area Swift bridge files plus
+  matching safe Rust modules.
+- Kept direct C symbols available behind the `raw-ffi` Cargo feature.
+
+### Added
+
+- Safe wrappers for the requested logical areas: `DynamicStore`,
+  `NetworkConfiguration`, `Reachability`, `Preferences`, `Schema`,
+  `NetworkService`, `NetworkSet`, `NetworkInterface`, `NetworkProtocol`,
+  `ConsoleUser`, and `CaptiveNetwork`.
+- 11 numbered examples covering each logical area.
+- 11 per-area smoke test files and shared test helpers.
+- `COVERAGE.md` with a per-header audit of implemented, partial, and skipped
+  APIs.
+
 ## [0.1.0] - 2026-05-16
 
 ### Added

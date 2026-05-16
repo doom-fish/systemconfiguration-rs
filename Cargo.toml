@@ -1,11 +1,11 @@
 [package]
 name = "systemconfiguration-rs"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 homepage = "https://github.com/doom-fish/systemconfiguration-rs"
 repository = "https://github.com/doom-fish/systemconfiguration-rs"
-description = "Safe Rust bindings for Apple's SystemConfiguration framework — reachability, dynamic store, preferences, interfaces, and services on macOS"
+description = "Safe Rust bindings for Apple's SystemConfiguration framework via a Swift bridge on macOS"
 authors = ["Per Johansson <per@doom.fish>"]
 keywords = ["systemconfiguration", "macos", "network", "reachability", "apple"]
 categories = ["api-bindings", "network-programming", "os::macos-apis"]
@@ -14,12 +14,15 @@ readme = "README.md"
 build = "build.rs"
 include = [
     "src/**/*",
+    "swift-bridge/**/*",
     "examples/**/*",
+    "tests/**/*",
     "build.rs",
     "Cargo.toml",
     "README.md",
-    "LICENSE-*",
     "CHANGELOG.md",
+    "COVERAGE.md",
+    "LICENSE-*",
 ]
 
 [lints.rust]
@@ -35,9 +38,12 @@ crate-type = ["lib"]
 
 [features]
 default = []
+raw-ffi = []
 
 [dependencies]
 libc = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 [package.metadata.docs.rs]
 all-features = true
@@ -47,9 +53,6 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [badges]
 maintenance = { status = "actively-developed" }
-
-[[example]]
-name = "01_interfaces_and_reachability"
 
 [profile.release]
 debug = "full"

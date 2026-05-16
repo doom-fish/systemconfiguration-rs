@@ -2,80 +2,121 @@
 
 Safe Rust bindings for Apple’s `SystemConfiguration.framework` on macOS.
 
-`systemconfiguration-rs` focuses on the APIs most useful for network tooling and
-system inspection:
+Version `0.2.0` switches the crate to a `screencapturekit-rs`-style Swift
+bridge: Cargo builds a small SwiftPM static library, Rust owns opaque retained
+handles, and the public API stays ergonomic on the Rust side. If you still need
+low-level C symbols, enable the `raw-ffi` feature.
 
-- `Reachability` wrappers for hostname / socket-address reachability checks
-- `DynamicStore` wrappers for configd key lookup, mutation, and notifications
-- `NetworkInterface` enumeration (`BSDName`, interface type, display name, MAC)
-- `Preferences` + `NetworkService` wrappers for system preference sessions and
-  service inspection
+## Covered areas
 
-## Status
+`systemconfiguration-rs` now ships safe wrappers for the logical areas requested
+for the `0.2.0` migration:
 
-Initial `0.1.0` coverage targets the public C APIs that are practical for
-listing interfaces, checking reachability, enumerating services, and reading or
-updating dynamic-store / preferences values.
+- `DynamicStore`
+- `NetworkConfiguration` overview helpers
+- `Reachability` / `NetworkReachability`
+- `Preferences`
+- `Schema`
+- `NetworkService`
+- `NetworkSet`
+- `NetworkInterface`
+- `NetworkProtocol`
+- `ConsoleUser`
+- `CaptiveNetwork`
+
+See [COVERAGE.md](COVERAGE.md) for the per-header audit, including the APIs that
+are still partial or intentionally skipped on macOS.
 
 ## Installation
 
 ```toml
 [dependencies]
-systemconfiguration-rs = "0.1"
+systemconfiguration-rs = "0.2"
 ```
+
+Enable raw C access when needed:
+
+```toml
+[dependencies]
+systemconfiguration-rs = { version = "0.2", features = ["raw-ffi"] }
+```
+
+The crate name is `systemconfiguration-rs`; the Rust library name is
+`systemconfiguration`.
 
 ## Quick start
 
-```rust
-use systemconfiguration::{NetworkInterface, Reachability};
+```rust,no_run
+use systemconfiguration::{DynamicStore, NetworkConfiguration, Reachability};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    for interface in NetworkInterface::copy_all()? {
-        println!(
-            "{:?} {:?}",
-            interface.bsd_name()?,
-            interface.interface_type()?
-        );
-    }
+    let store = DynamicStore::new("com.example.systemconfiguration-rs")?;
+    println!("computer_name={:?}", store.computer_name());
 
     let reachability = Reachability::with_name("apple.com")?;
     println!("apple.com => {}", reachability.flags()?);
+
+    let overview = NetworkConfiguration::overview()?;
+    println!(
+        "interfaces={} services={} current_set={:?}",
+        overview.interface_count,
+        overview.service_count,
+        overview.current_set_name
+    );
+
     Ok(())
 }
 ```
 
 ## Highlights
 
-- Pure Rust + C FFI (no Swift bridge required)
-- `Reachability::with_name`, `Reachability::with_address`, `flags`,
-  `set_callback`, and `schedule_with_run_loop_current`
-- `DynamicStore::copy_value`, `set_value`, `copy_key_list`, and
-  `set_notification_keys`
-- `NetworkInterface::copy_all` + per-interface metadata accessors
-- `Preferences::new`, `lock`, `set_value`, `commit_changes`, and
-  `network_services`
+- Swift bridge primary implementation with one Swift file per logical area
+- Safe Rust wrappers for property lists, preferences sessions, services, sets,
+  interfaces, protocols, reachability, captive-network helpers, and console-user
+  lookup
+- `raw-ffi` feature preserving direct access to the underlying C APIs already
+  declared by the crate
+- 11 numbered examples under `examples/` and 11 per-area smoke tests under
+  `tests/`
+
+## Architecture
+
+- `build.rs` builds `swift-bridge/Package.swift` into a static library and links
+  it into the Rust crate.
+- Swift bridge entry points are `@_cdecl` functions returning C primitives or
+  opaque retained pointers.
+- Rust owns those handles via `OwnedHandle` in `src/bridge.rs` and releases them
+  through shared bridge retain/release functions.
+- Some structured results are serialized as JSON in Swift and decoded with
+  `serde` on the Rust side.
+
+## Examples
+
+Run all examples exactly as used during verification:
+
+```bash
+for ex in examples/*.rs; do
+  cargo run --example "$(basename "$ex" .rs)"
+done
+```
+
+Handy entry points:
+
+- `cargo run --example 01_dynamic_store_overview`
+- `cargo run --example 03_network_reachability`
+- `cargo run --example 06_network_services`
+- `cargo run --example 11_captive_network`
 
 ## API notes
 
-- `PropertyList` currently provides ergonomic constructors for common string and
-  boolean values plus `description()` for debugging arbitrary CoreFoundation
-  payloads.
-- Writing preferences or dynamic-store values can require elevated privileges or
-  a properly scoped preferences session.
-- `SCNetworkReachability*` is deprecated by Apple in favor of Network.framework,
-  but it remains widely used and is exposed here as requested.
-
-## Smoke example
-
-```bash
-cargo run --example 01_interfaces_and_reachability
-```
-
-Expected tail output:
-
-```text
-✅ systemconfiguration interfaces + reachability OK
-```
+- Writing to the dynamic store or preferences can require elevated privileges;
+  read-only smoke examples are used where the host environment denies mutation.
+- Apple deprecates `SCNetworkReachability*` in favor of `Network.framework`, but
+  these APIs remain wrapped because they are still widely deployed.
+- `CaptiveNetwork` does not wrap `CNCopyCurrentNetworkInfo`, because that API is
+  unavailable on modern macOS and generally entitlement-gated.
+- `Schema::catalog()` currently returns a curated high-value subset of
+  `SCSchemaDefinitions.h`; see [COVERAGE.md](COVERAGE.md) for details.
 
 ## License
 
