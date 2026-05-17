@@ -2,15 +2,16 @@
 
 Safe Rust bindings for Apple’s `SystemConfiguration.framework` on macOS.
 
-Version `0.2.2` continues the `screencapturekit-rs`-style Swift bridge
+Version `0.4.0` continues the `screencapturekit-rs`-style Swift bridge
 introduced in `0.2.0`: Cargo builds a small SwiftPM static library, Rust owns
 opaque retained handles, and the public API stays ergonomic on the Rust side.
-If you still need low-level C symbols, enable the `raw-ffi` feature.
+If you need async notification streams, enable the `async` feature. If you
+still need low-level C symbols, enable the `raw-ffi` feature.
 
 ## Covered areas
 
 `systemconfiguration-rs` now ships safe wrappers for the logical areas covered
-by the `0.2.2` bridge release:
+by the current bridge release:
 
 - `DynamicStore`
 - `NetworkConfiguration` overview helpers
@@ -27,6 +28,7 @@ by the `0.2.2` bridge release:
 - `ConsoleUser`
 - `CaptiveNetwork`
 - `SystemConfiguration` error helpers
+- Optional `async_api` notification streams (`features = ["async"]`)
 
 See [COVERAGE.md](COVERAGE.md) for the per-header audit, including the APIs that
 are intentionally skipped on modern macOS.
@@ -35,14 +37,21 @@ are intentionally skipped on modern macOS.
 
 ```toml
 [dependencies]
-systemconfiguration-rs = "0.2"
+systemconfiguration-rs = "0.4"
+```
+
+Enable async notification streams when needed:
+
+```toml
+[dependencies]
+systemconfiguration-rs = { version = "0.4", features = ["async"] }
 ```
 
 Enable raw C access when needed:
 
 ```toml
 [dependencies]
-systemconfiguration-rs = { version = "0.2", features = ["raw-ffi"] }
+systemconfiguration-rs = { version = "0.4", features = ["raw-ffi"] }
 ```
 
 The crate name is `systemconfiguration-rs`; the Rust library name is
@@ -79,9 +88,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
   callbacks, services, sets, interfaces, bond/VLAN configuration, network
   connections, reachability, captive-network helpers, console-user lookup, and
   SystemConfiguration error helpers
+- Optional `async` feature exposing `DynamicStoreNotificationStream`,
+  `ReachabilityStream`, and `PreferencesNotificationStream` backed by
+  `doom-fish-utils::stream::BoundedAsyncStream`
 - `raw-ffi` feature preserving direct access to the underlying C APIs already
   declared by the crate
-- 11 numbered examples under `examples/` and 12 smoke tests under `tests/`
+- 14 numbered examples under `examples/` and 15 smoke tests under `tests/`
 
 ## Architecture
 
@@ -96,20 +108,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Examples
 
-Run all examples exactly as used during verification:
-
-```bash
-for ex in examples/*.rs; do
-  cargo run --example "$(basename "$ex" .rs)"
-done
-```
-
-Handy entry points:
+Run individual examples as needed:
 
 - `cargo run --example 01_dynamic_store_overview`
 - `cargo run --example 03_network_reachability`
 - `cargo run --example 06_network_services`
 - `cargo run --example 11_captive_network`
+- `cargo run --example 50_async_dynamic_store --features async`
+- `cargo run --example 51_async_reachability --features async`
+- `cargo run --example 52_async_preferences --features async`
 
 ## API notes
 
@@ -117,6 +124,8 @@ Handy entry points:
   read-only smoke examples are used where the host environment denies mutation.
 - Apple deprecates `SCNetworkReachability*` in favor of `Network.framework`, but
   these APIs remain wrapped because they are still widely deployed.
+- Async notification streams own their subscription handles; drop the stream to
+  unsubscribe and tear down the underlying run loop or dispatch queue.
 - `CaptiveNetwork` does not wrap `CNCopyCurrentNetworkInfo`, because that API is
   unavailable on modern macOS and generally entitlement-gated.
 - `Schema::catalog()` now exposes the full `SCSchemaDefinitions.h` catalog in

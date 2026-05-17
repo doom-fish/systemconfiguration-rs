@@ -63,6 +63,10 @@ pub use vlan_interface::VlanInterface;
 #[cfg(feature = "raw-ffi")]
 pub mod raw_ffi;
 
+#[cfg(feature = "async")]
+#[cfg_attr(docsrs, doc(cfg(feature = "async")))]
+pub mod async_api;
+
 pub mod prelude {
     pub use crate::{
         schema_definitions, BondInterface, BondStatus, CaptiveNetwork, ConsoleUser, DynamicStore,

@@ -1,5 +1,28 @@
 # Changelog
 
+
+## [0.4.0] - 2026-05-17
+
+### Added
+
+- `async` feature with an `async_api` module exposing three
+  `BoundedAsyncStream`-based notification streams:
+  - `DynamicStoreNotificationStream` — wraps `SCDynamicStore` key-change
+    notifications via a dedicated `CFRunLoop` thread.
+  - `ReachabilityStream` — wraps `SCNetworkReachability` callbacks via a
+    private dispatch queue.
+  - `PreferencesNotificationStream` — wraps `SCPreferences` notifications via a
+    private dispatch queue.
+- Swift bridge entry points in `AsyncStream.swift` for async subscribe /
+  unsubscribe lifecycle management.
+- Async examples `50_async_dynamic_store`, `51_async_reachability`, and
+  `52_async_preferences`.
+- Async smoke coverage in `tests/async_stream_tests.rs`.
+
+### Changed
+
+- Bumped the crate version to `0.4.0`.
+
 ## [0.3.0] - 2026-05-17
 
 ### Added
