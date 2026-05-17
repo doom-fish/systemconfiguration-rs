@@ -1,5 +1,6 @@
 use std::{
     ffi::c_void,
+    panic::AssertUnwindSafe,
     sync::{Arc, Mutex},
 };
 
@@ -21,9 +22,16 @@ unsafe extern "C" fn dynamic_store_callback(
         return;
     }
 
-    let mutex = &*info.cast::<Mutex<CallbackState>>();
+    // SAFETY: `info` is `Arc::as_ptr(state).cast_mut().cast::<c_void>()` kept
+    // alive by `DynamicStore::_callback` for the entire lifetime of the store.
+    // This callback is only invoked while the store is alive.
+    let mutex = unsafe { &*info.cast::<Mutex<CallbackState>>() };
     if let Ok(mut state) = mutex.lock() {
-        (state.callback)(bridge::take_string_array(changed_keys_raw));
+        let keys = bridge::take_string_array(changed_keys_raw);
+        // Catch panics: unwinding across the Swift/C FFI boundary is UB.
+        let _ = std::panic::catch_unwind(AssertUnwindSafe(|| {
+            (state.callback)(keys);
+        }));
     }
 }
 

@@ -47,7 +47,17 @@ impl Drop for SubscriptionHandle {
     }
 }
 
+// SAFETY: `SubscriptionHandle` owns two raw pointers that are each used
+// exactly once (in `Drop`).  The `ptr` was returned by a Swift subscribe
+// thunk and is only ever passed back into the matching unsubscribe thunk.
+// The `sender_ptr` was created with `Box::into_raw` and is reconstituted
+// exactly once via `drop_sender_fn`.  Neither pointer is shared or aliased
+// elsewhere, so transferring the handle across thread boundaries is safe.
 unsafe impl Send for SubscriptionHandle {}
+// SAFETY: `SubscriptionHandle` carries no shared mutable state — the two
+// pointers are used only in `Drop` (single-caller, single-use).  It is safe
+// to hold a `&SubscriptionHandle` on multiple threads simultaneously because
+// no method takes `&self`.
 unsafe impl Sync for SubscriptionHandle {}
 
 unsafe fn drop_sender<T>(raw: *mut c_void) {
@@ -74,13 +84,20 @@ unsafe extern "C" fn dynamic_store_async_cb(kind: i32, payload: *mut c_void, ctx
         return;
     }
 
+    // SAFETY: `ctx` is the `sender_ptr` created in `subscribe` via
+    // `Box::into_raw`.  It remains valid for the lifetime of the
+    // `SubscriptionHandle` (which outlives every callback invocation because
+    // `unsubscribe` joins the run-loop thread before `Drop` frees the sender).
     let sender = unsafe { &*ctx.cast::<AsyncStreamSender<DynamicStoreNotificationEvent>>() };
     let changed_keys = if payload.is_null() {
         Vec::new()
     } else {
         bridge::take_string_array(payload)
     };
-    sender.push(DynamicStoreNotificationEvent { changed_keys });
+    doom_fish_utils::panic_safe::catch_user_panic(
+        "dynamic_store_async_cb",
+        || sender.push(DynamicStoreNotificationEvent { changed_keys }),
+    );
 }
 
 impl DynamicStoreNotificationStream {
@@ -156,9 +173,16 @@ unsafe extern "C" fn reachability_async_cb(kind: i32, _payload: *mut c_void, ctx
         return;
     }
 
+    // SAFETY: same lifetime contract as `dynamic_store_async_cb` — `ctx` is a
+    // `Box::into_raw`-leaked `AsyncStreamSender<ReachabilityEvent>` that lives
+    // until `SubscriptionHandle::Drop` calls `drop_sender_fn`.  Reachability
+    // uses a dispatch queue (not a dedicated thread), so the queue is stopped
+    // before the sender is freed.
     let sender = unsafe { &*ctx.cast::<AsyncStreamSender<ReachabilityEvent>>() };
-    sender.push(ReachabilityEvent {
-        flags: ReachabilityFlags(u32::from_ne_bytes(kind.to_ne_bytes())),
+    doom_fish_utils::panic_safe::catch_user_panic("reachability_async_cb", || {
+        sender.push(ReachabilityEvent {
+            flags: ReachabilityFlags(u32::from_ne_bytes(kind.to_ne_bytes())),
+        });
     });
 }
 
@@ -224,9 +248,16 @@ unsafe extern "C" fn preferences_async_cb(kind: i32, _payload: *mut c_void, ctx:
         return;
     }
 
+    // SAFETY: same lifetime contract as `dynamic_store_async_cb` — `ctx` is a
+    // `Box::into_raw`-leaked `AsyncStreamSender<PreferencesNotificationEvent>`
+    // that lives until `SubscriptionHandle::Drop` calls `drop_sender_fn`.
     let sender = unsafe { &*ctx.cast::<AsyncStreamSender<PreferencesNotificationEvent>>() };
-    sender.push(PreferencesNotificationEvent {
-        notification: PreferencesNotification::from_raw(u32::from_ne_bytes(kind.to_ne_bytes())),
+    doom_fish_utils::panic_safe::catch_user_panic("preferences_async_cb", || {
+        sender.push(PreferencesNotificationEvent {
+            notification: PreferencesNotification::from_raw(u32::from_ne_bytes(
+                kind.to_ne_bytes(),
+            )),
+        });
     });
 }
 

@@ -25,19 +25,25 @@ private final class DynamicStoreNotificationHolder {
     let source: CFRunLoopSource
     let thread: Thread
     let callbackBox: DynamicStoreAsyncCallbackBox
+    /// Signalled by the run-loop thread immediately after `CFRunLoopRun()` returns,
+    /// allowing `unsubscribe` to join the thread and guarantee no further callbacks
+    /// can fire before the Rust side drops the sender box.
+    let threadDone: DispatchSemaphore
 
     init(
         store: SCDynamicStore,
         runLoop: CFRunLoop,
         source: CFRunLoopSource,
         thread: Thread,
-        callbackBox: DynamicStoreAsyncCallbackBox
+        callbackBox: DynamicStoreAsyncCallbackBox,
+        threadDone: DispatchSemaphore
     ) {
         self.store = store
         self.runLoop = runLoop
         self.source = source
         self.thread = thread
         self.callbackBox = callbackBox
+        self.threadDone = threadDone
     }
 }
 
@@ -90,6 +96,7 @@ public func sc_dynamic_store_notification_subscribe(
     guard let source = SCDynamicStoreCreateRunLoopSource(nil, store, 0) else { return nil }
 
     let semaphore = DispatchSemaphore(value: 0)
+    let threadDone = DispatchSemaphore(value: 0)
     let capture = RunLoopCapture()
     let thread = Thread {
         let runLoop = CFRunLoopGetCurrent()
@@ -97,6 +104,8 @@ public func sc_dynamic_store_notification_subscribe(
         CFRunLoopAddSource(runLoop, source, .defaultMode)
         semaphore.signal()
         CFRunLoopRun()
+        // Signal after CFRunLoopRun() returns so unsubscribe can join the thread.
+        threadDone.signal()
     }
     thread.name = "systemconfiguration-rs.async-dynamic-store"
     thread.start()
@@ -108,7 +117,8 @@ public func sc_dynamic_store_notification_subscribe(
         runLoop: runLoop,
         source: source,
         thread: thread,
-        callbackBox: callbackBox
+        callbackBox: callbackBox,
+        threadDone: threadDone
     )
     return Unmanaged.passRetained(holder).toOpaque()
 }
@@ -119,6 +129,11 @@ public func sc_dynamic_store_notification_unsubscribe(_ handle: UnsafeMutableRaw
     CFRunLoopRemoveSource(holder.runLoop, holder.source, .defaultMode)
     CFRunLoopStop(holder.runLoop)
     CFRunLoopWakeUp(holder.runLoop)
+    // Join the run-loop thread: wait until CFRunLoopRun() has returned on the
+    // worker thread.  This guarantees no further callbacks can access the Rust
+    // sender box after this function returns, so the Rust Drop impl can safely
+    // free the sender immediately after calling unsubscribe.
+    holder.threadDone.wait()
 }
 
 private final class ReachabilityAsyncCallbackBox {

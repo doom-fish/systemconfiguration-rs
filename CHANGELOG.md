@@ -1,7 +1,29 @@
 # Changelog
 
 
-## [0.4.0] - 2026-05-17
+## [0.4.1] - 2026-05-18
+
+### Fixed
+
+- **Thread join in `DynamicStoreNotificationStream`**: `sc_dynamic_store_notification_unsubscribe`
+  now waits for the run-loop thread to exit (`threadDone.wait()`) before returning.
+  Previously, `CFRunLoopStop`+`CFRunLoopWakeUp` were called but the thread was
+  never joined, creating a window where the thread could access the Rust sender
+  box after `Drop` freed it.  A `DispatchSemaphore` (`threadDone`) is now
+  signalled by the thread closure immediately after `CFRunLoopRun()` returns.
+- **Panic safety in `extern "C"` callbacks**: all three `async_api` callbacks
+  (`dynamic_store_async_cb`, `reachability_async_cb`, `preferences_async_cb`)
+  now wrap user-code invocations in
+  `doom_fish_utils::panic_safe::catch_user_panic`.  The synchronous
+  `dynamic_store_callback` in `dynamic_store.rs` now wraps user closures in
+  `std::panic::catch_unwind`.  Unhandled panics across the Swift/C FFI boundary
+  are undefined behaviour.
+- **SAFETY comments** added to the three `ctx`-pointer dereferences in `async_api.rs`
+  callbacks and to the `info`-pointer dereference in `dynamic_store_callback`.
+- **`unsafe impl Send/Sync for SubscriptionHandle`** now carries doc comments
+  explaining the single-use / no-alias ownership invariants that make them sound.
+
+
 
 ### Added
 
