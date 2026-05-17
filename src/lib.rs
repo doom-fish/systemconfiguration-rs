@@ -33,6 +33,7 @@ mod network_sets;
 mod preferences;
 mod property_list;
 mod schema;
+pub mod schema_definitions;
 mod system_configuration;
 mod vlan_interface;
 
@@ -46,7 +47,9 @@ pub use network_connection::{
     NetworkConnection, NetworkConnectionFlags, NetworkConnectionPppStatus, NetworkConnectionStatus,
     NetworkConnectionUserPreferences,
 };
-pub use network_interface::{NetworkInterface, NetworkInterfaceMediaOptions, NetworkInterfaceMtuInfo};
+pub use network_interface::{
+    NetworkInterface, NetworkInterfaceMediaOptions, NetworkInterfaceMtuInfo,
+};
 pub use network_protocol::NetworkProtocol;
 pub use network_reachability::{NetworkReachability, Reachability, ReachabilityFlags};
 pub use network_services::NetworkService;
@@ -62,14 +65,13 @@ pub mod raw_ffi;
 
 pub mod prelude {
     pub use crate::{
-        BondInterface, BondStatus, CaptiveNetwork, ConsoleUser, DynamicStore,
+        schema_definitions, BondInterface, BondStatus, CaptiveNetwork, ConsoleUser, DynamicStore,
         DynamicStoreRunLoopSource, NetworkConfiguration, NetworkConfigurationOverview,
-        NetworkConnection, NetworkConnectionFlags,
-        NetworkConnectionPppStatus, NetworkConnectionStatus, NetworkConnectionUserPreferences,
-        NetworkInterface, NetworkInterfaceMediaOptions, NetworkInterfaceMtuInfo, NetworkProtocol,
+        NetworkConnection, NetworkConnectionFlags, NetworkConnectionPppStatus,
+        NetworkConnectionStatus, NetworkConnectionUserPreferences, NetworkInterface,
+        NetworkInterfaceMediaOptions, NetworkInterfaceMtuInfo, NetworkProtocol,
         NetworkReachability, NetworkService, NetworkSet, Preferences, PreferencesNotification,
         PropertyList, Reachability, ReachabilityFlags, Result, Schema, SchemaCatalog,
-        SystemConfiguration, SystemConfigurationError, SystemConfigurationLastError,
-        VlanInterface,
+        SystemConfiguration, SystemConfigurationError, SystemConfigurationLastError, VlanInterface,
     };
 }

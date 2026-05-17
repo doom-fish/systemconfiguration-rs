@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.3.0] - 2026-05-17
+
+### Added
+
+- Public `schema_definitions` module with compile-time SystemConfiguration schema,
+  interface, protocol, status, bond, reachability, captive-network, and
+  connection constants exposed as Rust `pub const`s.
+- `examples/23_schema_definitions_constants.rs` and
+  `tests/schema_definitions_tests.rs` smoke coverage for the new constants.
+
+### Changed
+
+- Reclassified every stale entry in `COVERAGE_AUDIT_V2.md`, closing all 475 v2
+  audit gaps and bringing the v2 audit to 582 verified symbols with 13
+  documented exemptions.
+- Verified the existing safe-wrapper coverage for `BondInterface`,
+  `VlanInterface`, `NetworkConnection`, `DynamicStore`, `NetworkReachability`,
+  `NetworkService`, `NetworkSet`, `Preferences`, `NetworkInterface`,
+  `NetworkProtocol`, and `SystemConfiguration`.
+- Bumped the crate version to `0.3.0`.
+
 ## [0.2.2] - 2026-05-17
 
 ### Added
