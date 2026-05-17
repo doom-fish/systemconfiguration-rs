@@ -2,14 +2,25 @@ use std::ffi::{c_char, c_void};
 
 use super::core::Handle;
 
-pub(crate) type DynamicStoreCallback = Option<unsafe extern "C" fn(changed_keys_raw: Handle, info: *mut c_void)>;
+pub(crate) type DynamicStoreCallback =
+    Option<unsafe extern "C" fn(changed_keys_raw: Handle, info: *mut c_void)>;
 
 unsafe extern "C" {
     pub(crate) fn sc_dynamic_store_get_type_id() -> u64;
     pub(crate) fn sc_dynamic_store_create(name: *const c_char, use_session_keys: u8) -> Handle;
+    pub(crate) fn sc_dynamic_store_create_with_options(
+        name: *const c_char,
+        options: Handle,
+    ) -> Handle;
     pub(crate) fn sc_dynamic_store_create_with_callback(
         name: *const c_char,
         use_session_keys: u8,
+        callback: DynamicStoreCallback,
+        info: *mut c_void,
+    ) -> Handle;
+    pub(crate) fn sc_dynamic_store_create_with_options_and_callback(
+        name: *const c_char,
+        options: Handle,
         callback: DynamicStoreCallback,
         info: *mut c_void,
     ) -> Handle;
@@ -56,7 +67,8 @@ unsafe extern "C" {
     pub(crate) fn sc_dynamic_store_copy_local_host_name(raw: Handle) -> Handle;
     pub(crate) fn sc_dynamic_store_copy_location(raw: Handle) -> Handle;
     pub(crate) fn sc_dynamic_store_copy_proxies(raw: Handle) -> Handle;
-    pub(crate) fn sc_dynamic_store_copy_dhcp_info(raw: Handle, service_id: *const c_char) -> Handle;
+    pub(crate) fn sc_dynamic_store_copy_dhcp_info(raw: Handle, service_id: *const c_char)
+        -> Handle;
     pub(crate) fn sc_dhcp_info_copy_option_data(info_raw: Handle, code: u8) -> Handle;
     pub(crate) fn sc_dhcp_info_copy_lease_start_time(info_raw: Handle) -> Handle;
     pub(crate) fn sc_dhcp_info_copy_lease_expiration_time(info_raw: Handle) -> Handle;

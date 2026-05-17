@@ -2,7 +2,7 @@
 
 Safe Rust bindings for Apple’s `SystemConfiguration.framework` on macOS.
 
-Version `0.2.1` continues the `screencapturekit-rs`-style Swift bridge
+Version `0.2.2` continues the `screencapturekit-rs`-style Swift bridge
 introduced in `0.2.0`: Cargo builds a small SwiftPM static library, Rust owns
 opaque retained handles, and the public API stays ergonomic on the Rust side.
 If you still need low-level C symbols, enable the `raw-ffi` feature.
@@ -10,7 +10,7 @@ If you still need low-level C symbols, enable the `raw-ffi` feature.
 ## Covered areas
 
 `systemconfiguration-rs` now ships safe wrappers for the logical areas covered
-by the `0.2.1` bridge release:
+by the `0.2.2` bridge release:
 
 - `DynamicStore`
 - `NetworkConfiguration` overview helpers
@@ -29,7 +29,7 @@ by the `0.2.1` bridge release:
 - `SystemConfiguration` error helpers
 
 See [COVERAGE.md](COVERAGE.md) for the per-header audit, including the APIs that
-are still partial or intentionally skipped on macOS.
+are intentionally skipped on modern macOS.
 
 ## Installation
 

@@ -1,6 +1,6 @@
 mod common;
 
-use systemconfiguration::DynamicStore;
+use systemconfiguration::{DynamicStore, PropertyList};
 
 #[test]
 fn dynamic_store_reads_existing_state_and_key_helpers() -> Result<(), Box<dyn std::error::Error>> {
@@ -25,8 +25,15 @@ fn dynamic_store_reads_existing_state_and_key_helpers() -> Result<(), Box<dyn st
         let _ = DynamicStore::dhcp_lease_expiration_time(&info);
     }
 
-    let callback_store = DynamicStore::new_with_session_keys_and_callback(
+    let options = PropertyList::from_json("{}")?;
+    let _ = DynamicStore::new_with_options(
+        "systemconfiguration-rs.dynamic-store-options-tests",
+        &options,
+    )?;
+
+    let callback_store = DynamicStore::new_with_options_and_callback(
         "systemconfiguration-rs.dynamic-store-callback-tests",
+        &options,
         |_| {},
     )?;
     let computer_name_key = DynamicStore::computer_name_key()?;

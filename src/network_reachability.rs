@@ -1,6 +1,10 @@
-use std::{ffi::c_void, net::SocketAddr};
+use std::{
+    ffi::c_void,
+    net::SocketAddr,
+    sync::{Arc, Mutex},
+};
 
-use crate::{bridge, error::Result, ffi};
+use crate::{bridge, error::Result, ffi, SystemConfigurationError};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct ReachabilityFlags(pub u32);
@@ -85,36 +89,67 @@ impl std::fmt::Display for ReachabilityFlags {
     }
 }
 
-struct CallbackState {
+struct LocalCallbackState {
     callback: Box<dyn FnMut(ReachabilityFlags)>,
 }
 
-unsafe extern "C" fn reachability_callback(flags: u32, info: *mut c_void) {
+struct SendCallbackState {
+    callback: Box<dyn FnMut(ReachabilityFlags) + Send>,
+}
+
+enum RegisteredCallback {
+    Local {
+        _state: Box<LocalCallbackState>,
+    },
+    Send {
+        _state: Arc<Mutex<SendCallbackState>>,
+    },
+}
+
+unsafe extern "C" fn reachability_callback_local(flags: u32, info: *mut c_void) {
     if info.is_null() {
         return;
     }
 
-    let state = &mut *info.cast::<CallbackState>();
+    let state = unsafe { &mut *info.cast::<LocalCallbackState>() };
     (state.callback)(ReachabilityFlags(flags));
+}
+
+unsafe extern "C" fn reachability_callback_send(flags: u32, info: *mut c_void) {
+    if info.is_null() {
+        return;
+    }
+
+    let mutex = unsafe { &*info.cast::<Mutex<SendCallbackState>>() };
+    if let Ok(mut state) = mutex.lock() {
+        (state.callback)(ReachabilityFlags(flags));
+    }
 }
 
 pub struct Reachability {
     raw: bridge::OwnedHandle,
-    callback: Option<Box<CallbackState>>,
+    callback: Option<RegisteredCallback>,
     scheduled_with_current_run_loop: bool,
+    dispatch_queue_active: bool,
 }
 
 pub type NetworkReachability = Reachability;
 
 impl Reachability {
+    pub fn type_id() -> u64 {
+        unsafe { ffi::network_reachability::sc_reachability_get_type_id() }
+    }
+
     pub fn with_name(name: &str) -> Result<Self> {
         let name = bridge::cstring(name, "sc_reachability_create_with_name")?;
-        let raw = unsafe { ffi::network_reachability::sc_reachability_create_with_name(name.as_ptr()) };
+        let raw =
+            unsafe { ffi::network_reachability::sc_reachability_create_with_name(name.as_ptr()) };
         let raw = bridge::owned_handle_or_last("sc_reachability_create_with_name", raw)?;
         Ok(Self {
             raw,
             callback: None,
             scheduled_with_current_run_loop: false,
+            dispatch_queue_active: false,
         })
     }
 
@@ -131,10 +166,14 @@ impl Reachability {
             raw,
             callback: None,
             scheduled_with_current_run_loop: false,
+            dispatch_queue_active: false,
         })
     }
 
-    pub fn with_address_pair(local_address: Option<SocketAddr>, remote_address: Option<SocketAddr>) -> Result<Self> {
+    pub fn with_address_pair(
+        local_address: Option<SocketAddr>,
+        remote_address: Option<SocketAddr>,
+    ) -> Result<Self> {
         let local = local_address.map(socket_addr_to_bytes);
         let remote = remote_address.map(socket_addr_to_bytes);
         let raw = unsafe {
@@ -154,6 +193,7 @@ impl Reachability {
             raw,
             callback: None,
             scheduled_with_current_run_loop: false,
+            dispatch_queue_active: false,
         })
     }
 
@@ -170,37 +210,49 @@ impl Reachability {
     where
         F: FnMut(ReachabilityFlags) + 'static,
     {
-        let mut callback = Box::new(CallbackState {
+        if self.dispatch_queue_active {
+            return Err(SystemConfigurationError::null(
+                "sc_reachability_set_callback",
+                "dispatch queues require callbacks registered via Reachability::set_callback_send; clear the dispatch queue first",
+            ));
+        }
+
+        let mut callback = Box::new(LocalCallbackState {
             callback: Box::new(callback),
         });
-        let ok = unsafe {
-            ffi::network_reachability::sc_reachability_set_callback(
-                self.raw.as_ptr(),
-                Some(reachability_callback),
-                std::ptr::from_mut(&mut *callback).cast::<c_void>(),
-            )
-        };
-        bridge::bool_result("sc_reachability_set_callback", ok)?;
-        self.callback = Some(callback);
-        Ok(())
+        self.set_registered_callback(
+            Some(reachability_callback_local),
+            std::ptr::from_mut(&mut *callback).cast::<c_void>(),
+            Some(RegisteredCallback::Local { _state: callback }),
+        )
+    }
+
+    pub fn set_callback_send<F>(&mut self, callback: F) -> Result<()>
+    where
+        F: FnMut(ReachabilityFlags) + Send + 'static,
+    {
+        let callback = Arc::new(Mutex::new(SendCallbackState {
+            callback: Box::new(callback),
+        }));
+        self.set_registered_callback(
+            Some(reachability_callback_send),
+            Arc::as_ptr(&callback).cast_mut().cast::<c_void>(),
+            Some(RegisteredCallback::Send { _state: callback }),
+        )
     }
 
     pub fn clear_callback(&mut self) -> Result<()> {
-        let ok = unsafe {
-            ffi::network_reachability::sc_reachability_set_callback(
-                self.raw.as_ptr(),
-                None,
-                std::ptr::null_mut(),
-            )
-        };
-        bridge::bool_result("sc_reachability_set_callback", ok)?;
-        self.callback = None;
-        Ok(())
+        if self.dispatch_queue_active {
+            self.clear_dispatch_queue()?;
+        }
+        self.set_registered_callback(None, std::ptr::null_mut(), None)
     }
 
     pub fn schedule_with_run_loop_current(&mut self) -> Result<()> {
         let ok = unsafe {
-            ffi::network_reachability::sc_reachability_schedule_with_run_loop_current(self.raw.as_ptr())
+            ffi::network_reachability::sc_reachability_schedule_with_run_loop_current(
+                self.raw.as_ptr(),
+            )
         };
         bridge::bool_result("sc_reachability_schedule_with_run_loop_current", ok)?;
         self.scheduled_with_current_run_loop = true;
@@ -209,16 +261,66 @@ impl Reachability {
 
     pub fn unschedule_from_run_loop_current(&mut self) -> Result<()> {
         let ok = unsafe {
-            ffi::network_reachability::sc_reachability_unschedule_from_run_loop_current(self.raw.as_ptr())
+            ffi::network_reachability::sc_reachability_unschedule_from_run_loop_current(
+                self.raw.as_ptr(),
+            )
         };
         bridge::bool_result("sc_reachability_unschedule_from_run_loop_current", ok)?;
         self.scheduled_with_current_run_loop = false;
+        Ok(())
+    }
+
+    pub fn set_dispatch_queue_global(&mut self) -> Result<()> {
+        if matches!(self.callback, Some(RegisteredCallback::Local { .. })) {
+            return Err(SystemConfigurationError::null(
+                "sc_reachability_set_dispatch_queue_global",
+                "dispatch queues require callbacks registered via Reachability::set_callback_send",
+            ));
+        }
+
+        let ok = unsafe {
+            ffi::network_reachability::sc_reachability_set_dispatch_queue_global(self.raw.as_ptr())
+        };
+        bridge::bool_result("sc_reachability_set_dispatch_queue_global", ok)?;
+        self.dispatch_queue_active = true;
+        Ok(())
+    }
+
+    pub fn clear_dispatch_queue(&mut self) -> Result<()> {
+        let ok = unsafe {
+            ffi::network_reachability::sc_reachability_clear_dispatch_queue(self.raw.as_ptr())
+        };
+        bridge::bool_result("sc_reachability_clear_dispatch_queue", ok)?;
+        self.dispatch_queue_active = false;
+        Ok(())
+    }
+
+    fn set_registered_callback(
+        &mut self,
+        callback: ffi::network_reachability::ReachabilityCallback,
+        info: *mut c_void,
+        registered: Option<RegisteredCallback>,
+    ) -> Result<()> {
+        let ok = unsafe {
+            ffi::network_reachability::sc_reachability_set_callback(
+                self.raw.as_ptr(),
+                callback,
+                info,
+            )
+        };
+        bridge::bool_result("sc_reachability_set_callback", ok)?;
+        self.callback = registered;
         Ok(())
     }
 }
 
 impl Drop for Reachability {
     fn drop(&mut self) {
+        if self.dispatch_queue_active {
+            let _ = unsafe {
+                ffi::network_reachability::sc_reachability_clear_dispatch_queue(self.raw.as_ptr())
+            };
+        }
         if self.scheduled_with_current_run_loop {
             let _ = unsafe {
                 ffi::network_reachability::sc_reachability_unschedule_from_run_loop_current(

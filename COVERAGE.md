@@ -16,11 +16,12 @@ Audit basis:
 
 Legend:
 
-- ✅ implemented — shipped as a safe Swift-bridge wrapper in `0.2.1`
-- 🟡 partial — some access exists, but the safe API is incomplete or the symbol
-  is only represented indirectly
+- ✅ implemented — shipped as a safe Swift-bridge wrapper in `0.2.2`
 - ⏭️ skipped — intentionally omitted because the API is unavailable on modern
   macOS or otherwise unsuitable for this crate
+
+Current safe-wrapper status: 100% of the non-skipped APIs in the audited headers
+are exposed.
 
 ## DynamicStore
 
@@ -35,9 +36,9 @@ Legend:
   `SCDynamicStoreGetTypeID`, `SCDynamicStoreSetDispatchQueue`, and
   `SCDynamicStoreSetMultiple` are wrapped by `DynamicStore` /
   `DynamicStoreRunLoopSource`.
-- 🟡 `SCDynamicStoreCreateWithOptions` is still represented by the crate's
-  session-key creation mode rather than a fully generic options-dictionary
-  entry point.
+- ✅ `SCDynamicStoreCreateWithOptions` is wrapped by
+  `DynamicStore::new_with_options` and
+  `DynamicStore::new_with_options_and_callback`.
 
 ### `SCDynamicStoreCopySpecific.h`
 
@@ -96,11 +97,10 @@ Legend:
 - ✅ `SCNetworkReachabilityCreateWithAddress`,
   `SCNetworkReachabilityCreateWithAddressPair`,
   `SCNetworkReachabilityCreateWithName`, `SCNetworkReachabilityGetFlags`,
-  `SCNetworkReachabilitySetCallback`,
-  `SCNetworkReachabilityScheduleWithRunLoop`, and
+  `SCNetworkReachabilityGetTypeID`, `SCNetworkReachabilitySetCallback`,
+  `SCNetworkReachabilityScheduleWithRunLoop`,
+  `SCNetworkReachabilitySetDispatchQueue`, and
   `SCNetworkReachabilityUnscheduleFromRunLoop` are wrapped by `Reachability`.
-- 🟡 `SCNetworkReachabilityGetTypeID` is not surfaced.
-- 🟡 `SCNetworkReachabilitySetDispatchQueue` is not wrapped.
 
 ## Network configuration families
 

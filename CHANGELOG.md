@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.2.2] - 2026-05-17
+
+### Added
+
+- `DynamicStore::new_with_options` and
+  `DynamicStore::new_with_options_and_callback` for the remaining generic
+  `SCDynamicStoreCreateWithOptions` coverage.
+- `Reachability::type_id`, `Reachability::set_callback_send`,
+  `Reachability::set_dispatch_queue_global`, and
+  `Reachability::clear_dispatch_queue` to close the last reachability gaps.
+
+### Changed
+
+- Closed the remaining safe-wrapper partials in `COVERAGE.md`, bringing the
+  non-skipped safe audit to 100%.
+- Bumped the crate version to `0.2.2`.
+
 ## [0.2.1] - 2026-05-16
 
 ### Added
