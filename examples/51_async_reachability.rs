@@ -2,7 +2,8 @@
 
 #[cfg(feature = "async")]
 fn main() {
-    let stream = match systemconfiguration::async_api::ReachabilityStream::subscribe("apple.com", 8) {
+    let stream = match systemconfiguration::async_api::ReachabilityStream::subscribe("apple.com", 8)
+    {
         Ok(stream) => stream,
         Err(error) => {
             eprintln!("subscribe failed: {error}");
@@ -17,5 +18,7 @@ fn main() {
 
 #[cfg(not(feature = "async"))]
 fn main() {
-    eprintln!("enable the async feature: cargo run --example 51_async_reachability --features async");
+    eprintln!(
+        "enable the async feature: cargo run --example 51_async_reachability --features async"
+    );
 }

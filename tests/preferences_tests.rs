@@ -14,7 +14,8 @@ fn preferences_support_read_only_queries_and_paths() -> Result<(), Box<dyn std::
     let _ = prefs.path_get_link("/")?;
     assert!(prefs.signature().is_some());
 
-    let auth_prefs = Preferences::new_with_authorization("systemconfiguration-rs.preferences-auth-tests", None)?;
+    let auth_prefs =
+        Preferences::new_with_authorization("systemconfiguration-rs.preferences-auth-tests", None)?;
     assert!(!auth_prefs.copy_key_list().is_empty());
 
     let notifications = PreferencesNotification::COMMIT | PreferencesNotification::APPLY;

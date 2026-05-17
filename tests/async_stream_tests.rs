@@ -60,8 +60,8 @@ mod async_stream {
             4,
         )
         .expect("dynamic store subscribe");
-        let reachability = ReachabilityStream::subscribe("8.8.8.8", 4)
-            .expect("reachability subscribe");
+        let reachability =
+            ReachabilityStream::subscribe("8.8.8.8", 4).expect("reachability subscribe");
         let preferences = PreferencesNotificationStream::subscribe("test-coexist-prefs", 4)
             .expect("preferences subscribe");
         assert!(dynamic_store.try_next().is_none());

@@ -23,5 +23,7 @@ fn main() {
 
 #[cfg(not(feature = "async"))]
 fn main() {
-    eprintln!("enable the async feature: cargo run --example 50_async_dynamic_store --features async");
+    eprintln!(
+        "enable the async feature: cargo run --example 50_async_dynamic_store --features async"
+    );
 }

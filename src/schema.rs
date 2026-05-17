@@ -34,6 +34,8 @@ pub struct Schema;
 
 impl Schema {
     pub fn catalog() -> Result<SchemaCatalog> {
-        bridge::parse_json("sc_schema_copy_catalog", unsafe { ffi::schema::sc_schema_copy_catalog() })
+        bridge::parse_json("sc_schema_copy_catalog", unsafe {
+            ffi::schema::sc_schema_copy_catalog()
+        })
     }
 }

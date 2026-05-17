@@ -8,7 +8,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         catalog.components.len(),
         catalog.entities.len(),
         catalog.proxies.len(),
-        catalog.get("kSCDynamicStoreDomainSetup").unwrap_or_default()
+        catalog
+            .get("kSCDynamicStoreDomainSetup")
+            .unwrap_or_default()
     );
     Ok(())
 }

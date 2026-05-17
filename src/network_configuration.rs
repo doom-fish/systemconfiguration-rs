@@ -20,9 +20,8 @@ pub struct NetworkConfiguration;
 
 impl NetworkConfiguration {
     pub fn overview() -> Result<NetworkConfigurationOverview> {
-        bridge::parse_json(
-            "sc_network_configuration_copy_overview",
-            unsafe { ffi::network_configuration::sc_network_configuration_copy_overview() },
-        )
+        bridge::parse_json("sc_network_configuration_copy_overview", unsafe {
+            ffi::network_configuration::sc_network_configuration_copy_overview()
+        })
     }
 }

@@ -88,7 +88,8 @@ unsafe extern "C" {
         context: *const c_void,
     ) -> SCDynamicStoreRef;
     pub fn SCDynamicStoreCopyKeyList(store: SCDynamicStoreRef, pattern: CFStringRef) -> CFArrayRef;
-    pub fn SCDynamicStoreCopyValue(store: SCDynamicStoreRef, key: CFStringRef) -> CFPropertyListRef;
+    pub fn SCDynamicStoreCopyValue(store: SCDynamicStoreRef, key: CFStringRef)
+        -> CFPropertyListRef;
     pub fn SCDynamicStoreCopyMultiple(
         store: SCDynamicStoreRef,
         keys: CFArrayRef,
@@ -117,7 +118,10 @@ unsafe extern "C" {
         patterns: CFArrayRef,
     ) -> Boolean;
     pub fn SCDynamicStoreCopyNotifiedKeys(store: SCDynamicStoreRef) -> CFArrayRef;
-    pub fn SCDynamicStoreCopyComputerName(store: SCDynamicStoreRef, encoding: *mut u32) -> CFStringRef;
+    pub fn SCDynamicStoreCopyComputerName(
+        store: SCDynamicStoreRef,
+        encoding: *mut u32,
+    ) -> CFStringRef;
     pub fn SCDynamicStoreCopyConsoleUser(
         store: SCDynamicStoreRef,
         uid: *mut libc::uid_t,
@@ -126,7 +130,10 @@ unsafe extern "C" {
     pub fn SCDynamicStoreCopyLocalHostName(store: SCDynamicStoreRef) -> CFStringRef;
     pub fn SCDynamicStoreCopyLocation(store: SCDynamicStoreRef) -> CFStringRef;
     pub fn SCDynamicStoreCopyProxies(store: SCDynamicStoreRef) -> CFDictionaryRef;
-    pub fn SCDynamicStoreCopyDHCPInfo(store: SCDynamicStoreRef, service_id: CFStringRef) -> CFDictionaryRef;
+    pub fn SCDynamicStoreCopyDHCPInfo(
+        store: SCDynamicStoreRef,
+        service_id: CFStringRef,
+    ) -> CFDictionaryRef;
     pub fn SCDynamicStoreKeyCreateNetworkGlobalEntity(
         allocator: CFAllocatorRef,
         domain: CFStringRef,
@@ -178,8 +185,12 @@ unsafe extern "C" {
     ) -> Boolean;
     pub fn SCPreferencesRemoveValue(prefs: SCPreferencesRef, key: CFStringRef) -> Boolean;
     pub fn SCPreferencesSynchronize(prefs: SCPreferencesRef);
-    pub fn SCPreferencesPathCreateUniqueChild(prefs: SCPreferencesRef, prefix: CFStringRef) -> CFStringRef;
-    pub fn SCPreferencesPathGetValue(prefs: SCPreferencesRef, path: CFStringRef) -> CFDictionaryRef;
+    pub fn SCPreferencesPathCreateUniqueChild(
+        prefs: SCPreferencesRef,
+        prefix: CFStringRef,
+    ) -> CFStringRef;
+    pub fn SCPreferencesPathGetValue(prefs: SCPreferencesRef, path: CFStringRef)
+        -> CFDictionaryRef;
     pub fn SCPreferencesPathGetLink(prefs: SCPreferencesRef, path: CFStringRef) -> CFStringRef;
     pub fn SCPreferencesPathSetValue(
         prefs: SCPreferencesRef,
@@ -206,12 +217,22 @@ unsafe extern "C" {
         interface: SCNetworkInterfaceRef,
         extended_type: CFStringRef,
     ) -> CFDictionaryRef;
-    pub fn SCNetworkInterfaceGetHardwareAddressString(interface: SCNetworkInterfaceRef) -> CFStringRef;
-    pub fn SCNetworkInterfaceGetInterface(interface: SCNetworkInterfaceRef) -> SCNetworkInterfaceRef;
+    pub fn SCNetworkInterfaceGetHardwareAddressString(
+        interface: SCNetworkInterfaceRef,
+    ) -> CFStringRef;
+    pub fn SCNetworkInterfaceGetInterface(
+        interface: SCNetworkInterfaceRef,
+    ) -> SCNetworkInterfaceRef;
     pub fn SCNetworkInterfaceGetInterfaceType(interface: SCNetworkInterfaceRef) -> CFStringRef;
-    pub fn SCNetworkInterfaceGetLocalizedDisplayName(interface: SCNetworkInterfaceRef) -> CFStringRef;
-    pub fn SCNetworkInterfaceGetSupportedInterfaceTypes(interface: SCNetworkInterfaceRef) -> CFArrayRef;
-    pub fn SCNetworkInterfaceGetSupportedProtocolTypes(interface: SCNetworkInterfaceRef) -> CFArrayRef;
+    pub fn SCNetworkInterfaceGetLocalizedDisplayName(
+        interface: SCNetworkInterfaceRef,
+    ) -> CFStringRef;
+    pub fn SCNetworkInterfaceGetSupportedInterfaceTypes(
+        interface: SCNetworkInterfaceRef,
+    ) -> CFArrayRef;
+    pub fn SCNetworkInterfaceGetSupportedProtocolTypes(
+        interface: SCNetworkInterfaceRef,
+    ) -> CFArrayRef;
     pub fn SCNetworkInterfaceCreateWithInterface(
         interface: SCNetworkInterfaceRef,
         interface_type: CFStringRef,
@@ -222,13 +243,18 @@ unsafe extern "C" {
         minimum: *mut i32,
         maximum: *mut i32,
     ) -> Boolean;
-    pub fn SCNetworkInterfaceForceConfigurationRefresh(interface: SCNetworkInterfaceRef) -> Boolean;
+    pub fn SCNetworkInterfaceForceConfigurationRefresh(interface: SCNetworkInterfaceRef)
+        -> Boolean;
 
     pub fn SCNetworkProtocolGetConfiguration(protocol: SCNetworkProtocolRef) -> CFDictionaryRef;
     pub fn SCNetworkProtocolGetEnabled(protocol: SCNetworkProtocolRef) -> Boolean;
     pub fn SCNetworkProtocolGetProtocolType(protocol: SCNetworkProtocolRef) -> CFStringRef;
-    pub fn SCNetworkProtocolSetConfiguration(protocol: SCNetworkProtocolRef, config: CFDictionaryRef) -> Boolean;
-    pub fn SCNetworkProtocolSetEnabled(protocol: SCNetworkProtocolRef, enabled: Boolean) -> Boolean;
+    pub fn SCNetworkProtocolSetConfiguration(
+        protocol: SCNetworkProtocolRef,
+        config: CFDictionaryRef,
+    ) -> Boolean;
+    pub fn SCNetworkProtocolSetEnabled(protocol: SCNetworkProtocolRef, enabled: Boolean)
+        -> Boolean;
 
     pub fn SCNetworkServiceCopyAll(prefs: SCPreferencesRef) -> CFArrayRef;
     pub fn SCNetworkServiceCopyProtocols(service: SCNetworkServiceRef) -> CFArrayRef;
@@ -236,14 +262,20 @@ unsafe extern "C" {
         service: SCNetworkServiceRef,
         protocol_type: CFStringRef,
     ) -> SCNetworkProtocolRef;
-    pub fn SCNetworkServiceAddProtocolType(service: SCNetworkServiceRef, protocol_type: CFStringRef) -> Boolean;
+    pub fn SCNetworkServiceAddProtocolType(
+        service: SCNetworkServiceRef,
+        protocol_type: CFStringRef,
+    ) -> Boolean;
     pub fn SCNetworkServiceEstablishDefaultConfiguration(service: SCNetworkServiceRef) -> Boolean;
     pub fn SCNetworkServiceGetEnabled(service: SCNetworkServiceRef) -> Boolean;
     pub fn SCNetworkServiceGetInterface(service: SCNetworkServiceRef) -> SCNetworkInterfaceRef;
     pub fn SCNetworkServiceGetName(service: SCNetworkServiceRef) -> CFStringRef;
     pub fn SCNetworkServiceGetServiceID(service: SCNetworkServiceRef) -> CFStringRef;
     pub fn SCNetworkServiceRemove(service: SCNetworkServiceRef) -> Boolean;
-    pub fn SCNetworkServiceRemoveProtocolType(service: SCNetworkServiceRef, protocol_type: CFStringRef) -> Boolean;
+    pub fn SCNetworkServiceRemoveProtocolType(
+        service: SCNetworkServiceRef,
+        protocol_type: CFStringRef,
+    ) -> Boolean;
     pub fn SCNetworkServiceSetEnabled(service: SCNetworkServiceRef, enabled: Boolean) -> Boolean;
     pub fn SCNetworkServiceSetName(service: SCNetworkServiceRef, name: CFStringRef) -> Boolean;
 
@@ -259,7 +291,8 @@ unsafe extern "C" {
     ) -> Boolean;
     pub fn SCNetworkSetAddService(set: SCNetworkSetRef, service: SCNetworkServiceRef) -> Boolean;
     pub fn SCNetworkSetRemove(set: SCNetworkSetRef) -> Boolean;
-    pub fn SCNetworkSetRemoveService(set: SCNetworkSetRef, service: SCNetworkServiceRef) -> Boolean;
+    pub fn SCNetworkSetRemoveService(set: SCNetworkSetRef, service: SCNetworkServiceRef)
+        -> Boolean;
     pub fn SCNetworkSetSetCurrent(set: SCNetworkSetRef) -> Boolean;
     pub fn SCNetworkSetSetName(set: SCNetworkSetRef, name: CFStringRef) -> Boolean;
     pub fn SCNetworkSetSetServiceOrder(set: SCNetworkSetRef, order: CFArrayRef) -> Boolean;

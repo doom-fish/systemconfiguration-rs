@@ -1,10 +1,6 @@
 use crate::{
-    bridge,
-    error::Result,
-    ffi,
-    network_interface::NetworkInterface,
-    network_services::NetworkService,
-    preferences::Preferences,
+    bridge, error::Result, ffi, network_interface::NetworkInterface,
+    network_services::NetworkService, preferences::Preferences,
 };
 
 #[derive(Clone, Debug)]
@@ -30,13 +26,19 @@ impl NetworkSet {
 
     pub fn copy(preferences: &Preferences, set_id: &str) -> Result<Option<Self>> {
         let set_id = bridge::cstring(set_id, "sc_network_set_copy")?;
-        let raw = unsafe { ffi::network_sets::sc_network_set_copy(preferences.as_ptr(), set_id.as_ptr()) };
+        let raw = unsafe {
+            ffi::network_sets::sc_network_set_copy(preferences.as_ptr(), set_id.as_ptr())
+        };
         Ok(unsafe { bridge::OwnedHandle::from_raw(raw) }.map(Self::from_owned_handle))
     }
 
     pub fn copy_current(preferences: &Preferences) -> Option<Self> {
-        unsafe { bridge::OwnedHandle::from_raw(ffi::network_sets::sc_network_set_copy_current(preferences.as_ptr())) }
-            .map(Self::from_owned_handle)
+        unsafe {
+            bridge::OwnedHandle::from_raw(ffi::network_sets::sc_network_set_copy_current(
+                preferences.as_ptr(),
+            ))
+        }
+        .map(Self::from_owned_handle)
     }
 
     pub fn copy_services(&self) -> Vec<NetworkService> {
@@ -45,11 +47,15 @@ impl NetworkSet {
     }
 
     pub fn name(&self) -> Option<String> {
-        bridge::take_optional_string(unsafe { ffi::network_sets::sc_network_set_copy_name(self.raw.as_ptr()) })
+        bridge::take_optional_string(unsafe {
+            ffi::network_sets::sc_network_set_copy_name(self.raw.as_ptr())
+        })
     }
 
     pub fn set_id(&self) -> Option<String> {
-        bridge::take_optional_string(unsafe { ffi::network_sets::sc_network_set_copy_set_id(self.raw.as_ptr()) })
+        bridge::take_optional_string(unsafe {
+            ffi::network_sets::sc_network_set_copy_set_id(self.raw.as_ptr())
+        })
     }
 
     pub fn service_order(&self) -> Vec<String> {
@@ -60,12 +66,17 @@ impl NetworkSet {
 
     pub fn contains_interface(&self, interface: &NetworkInterface) -> bool {
         unsafe {
-            ffi::network_sets::sc_network_set_contains_interface(self.raw.as_ptr(), interface.as_ptr()) != 0
+            ffi::network_sets::sc_network_set_contains_interface(
+                self.raw.as_ptr(),
+                interface.as_ptr(),
+            ) != 0
         }
     }
 
     pub fn add_service(&self, service: &NetworkService) -> Result<()> {
-        let ok = unsafe { ffi::network_sets::sc_network_set_add_service(self.raw.as_ptr(), service.as_ptr()) };
+        let ok = unsafe {
+            ffi::network_sets::sc_network_set_add_service(self.raw.as_ptr(), service.as_ptr())
+        };
         bridge::bool_result("sc_network_set_add_service", ok)
     }
 
@@ -91,7 +102,8 @@ impl NetworkSet {
         let ok = unsafe {
             ffi::network_sets::sc_network_set_set_name(
                 self.raw.as_ptr(),
-                name.as_ref().map_or(std::ptr::null(), |value| value.as_ptr()),
+                name.as_ref()
+                    .map_or(std::ptr::null(), |value| value.as_ptr()),
             )
         };
         bridge::bool_result("sc_network_set_set_name", ok)

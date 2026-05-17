@@ -144,7 +144,8 @@ impl Preferences {
     where
         F: FnMut(PreferencesNotification) + Send + 'static,
     {
-        let mut preferences = unsafe { Self::create_with_authorization(name, prefs_id, authorization) }?;
+        let mut preferences =
+            unsafe { Self::create_with_authorization(name, prefs_id, authorization) }?;
         preferences.set_callback(callback)?;
         Ok(preferences)
     }
@@ -155,7 +156,9 @@ impl Preferences {
         let raw = unsafe {
             ffi::preferences::sc_preferences_create(
                 name.as_ptr(),
-                prefs_id.as_ref().map_or(std::ptr::null(), |value| value.as_ptr()),
+                prefs_id
+                    .as_ref()
+                    .map_or(std::ptr::null(), |value| value.as_ptr()),
             )
         };
         let raw = bridge::owned_handle_or_last("sc_preferences_create", raw)?;
@@ -171,11 +174,14 @@ impl Preferences {
         authorization: Option<NonNull<c_void>>,
     ) -> Result<Self> {
         let name = bridge::cstring(name, "sc_preferences_create_with_authorization")?;
-        let prefs_id = bridge::optional_cstring(prefs_id, "sc_preferences_create_with_authorization")?;
+        let prefs_id =
+            bridge::optional_cstring(prefs_id, "sc_preferences_create_with_authorization")?;
         let raw = unsafe {
             ffi::preferences::sc_preferences_create_with_authorization(
                 name.as_ptr(),
-                prefs_id.as_ref().map_or(std::ptr::null(), |value| value.as_ptr()),
+                prefs_id
+                    .as_ref()
+                    .map_or(std::ptr::null(), |value| value.as_ptr()),
                 authorization.map_or(std::ptr::null_mut(), NonNull::as_ptr),
             )
         };
@@ -204,10 +210,12 @@ impl Preferences {
         let ok = unsafe {
             ffi::preferences::sc_preferences_set_callback(
                 self.raw.as_ptr(),
-                callback.as_ref().map(|_| preferences_callback as unsafe extern "C" fn(u32, *mut c_void)),
                 callback
                     .as_ref()
-                    .map_or(std::ptr::null_mut(), |state| Arc::as_ptr(state).cast_mut().cast::<c_void>()),
+                    .map(|_| preferences_callback as unsafe extern "C" fn(u32, *mut c_void)),
+                callback.as_ref().map_or(std::ptr::null_mut(), |state| {
+                    Arc::as_ptr(state).cast_mut().cast::<c_void>()
+                }),
             )
         };
         bridge::bool_result("sc_preferences_set_callback", ok)?;
@@ -216,7 +224,9 @@ impl Preferences {
     }
 
     pub fn schedule_with_run_loop_current(&self) -> Result<()> {
-        let ok = unsafe { ffi::preferences::sc_preferences_schedule_with_run_loop_current(self.raw.as_ptr()) };
+        let ok = unsafe {
+            ffi::preferences::sc_preferences_schedule_with_run_loop_current(self.raw.as_ptr())
+        };
         bridge::bool_result("sc_preferences_schedule_with_run_loop_current", ok)
     }
 
@@ -228,17 +238,21 @@ impl Preferences {
     }
 
     pub fn set_dispatch_queue_global(&self) -> Result<()> {
-        let ok = unsafe { ffi::preferences::sc_preferences_set_dispatch_queue_global(self.raw.as_ptr()) };
+        let ok = unsafe {
+            ffi::preferences::sc_preferences_set_dispatch_queue_global(self.raw.as_ptr())
+        };
         bridge::bool_result("sc_preferences_set_dispatch_queue_global", ok)
     }
 
     pub fn clear_dispatch_queue(&self) -> Result<()> {
-        let ok = unsafe { ffi::preferences::sc_preferences_clear_dispatch_queue(self.raw.as_ptr()) };
+        let ok =
+            unsafe { ffi::preferences::sc_preferences_clear_dispatch_queue(self.raw.as_ptr()) };
         bridge::bool_result("sc_preferences_clear_dispatch_queue", ok)
     }
 
     pub fn lock(&self, wait: bool) -> Result<()> {
-        let ok = unsafe { ffi::preferences::sc_preferences_lock(self.raw.as_ptr(), u8::from(wait)) };
+        let ok =
+            unsafe { ffi::preferences::sc_preferences_lock(self.raw.as_ptr(), u8::from(wait)) };
         bridge::bool_result("sc_preferences_lock", ok)
     }
 
@@ -262,47 +276,71 @@ impl Preferences {
     }
 
     pub fn signature(&self) -> Option<String> {
-        bridge::take_optional_string(unsafe { ffi::preferences::sc_preferences_copy_signature(self.raw.as_ptr()) })
+        bridge::take_optional_string(unsafe {
+            ffi::preferences::sc_preferences_copy_signature(self.raw.as_ptr())
+        })
     }
 
     pub fn copy_key_list(&self) -> Vec<String> {
-        bridge::take_string_array(unsafe { ffi::preferences::sc_preferences_copy_key_list(self.raw.as_ptr()) })
+        bridge::take_string_array(unsafe {
+            ffi::preferences::sc_preferences_copy_key_list(self.raw.as_ptr())
+        })
     }
 
     pub fn get_value(&self, key: &str) -> Result<Option<PropertyList>> {
         let key = bridge::cstring(key, "sc_preferences_get_value")?;
-        let raw = unsafe { ffi::preferences::sc_preferences_get_value(self.raw.as_ptr(), key.as_ptr()) };
+        let raw =
+            unsafe { ffi::preferences::sc_preferences_get_value(self.raw.as_ptr(), key.as_ptr()) };
         Ok(unsafe { bridge::OwnedHandle::from_raw(raw) }.map(PropertyList::from_owned_handle))
     }
 
     pub fn add_value(&self, key: &str, value: &PropertyList) -> Result<()> {
         let key = bridge::cstring(key, "sc_preferences_add_value")?;
-        let ok = unsafe { ffi::preferences::sc_preferences_add_value(self.raw.as_ptr(), key.as_ptr(), value.as_ptr()) };
+        let ok = unsafe {
+            ffi::preferences::sc_preferences_add_value(
+                self.raw.as_ptr(),
+                key.as_ptr(),
+                value.as_ptr(),
+            )
+        };
         bridge::bool_result("sc_preferences_add_value", ok)
     }
 
     pub fn set_value(&self, key: &str, value: &PropertyList) -> Result<()> {
         let key = bridge::cstring(key, "sc_preferences_set_value")?;
-        let ok = unsafe { ffi::preferences::sc_preferences_set_value(self.raw.as_ptr(), key.as_ptr(), value.as_ptr()) };
+        let ok = unsafe {
+            ffi::preferences::sc_preferences_set_value(
+                self.raw.as_ptr(),
+                key.as_ptr(),
+                value.as_ptr(),
+            )
+        };
         bridge::bool_result("sc_preferences_set_value", ok)
     }
 
     pub fn remove_value(&self, key: &str) -> Result<()> {
         let key = bridge::cstring(key, "sc_preferences_remove_value")?;
-        let ok = unsafe { ffi::preferences::sc_preferences_remove_value(self.raw.as_ptr(), key.as_ptr()) };
+        let ok = unsafe {
+            ffi::preferences::sc_preferences_remove_value(self.raw.as_ptr(), key.as_ptr())
+        };
         bridge::bool_result("sc_preferences_remove_value", ok)
     }
 
     pub fn path_create_unique_child(&self, prefix: &str) -> Result<Option<String>> {
         let prefix = bridge::cstring(prefix, "sc_preferences_path_create_unique_child")?;
         Ok(bridge::take_optional_string(unsafe {
-            ffi::preferences::sc_preferences_path_create_unique_child(self.raw.as_ptr(), prefix.as_ptr())
+            ffi::preferences::sc_preferences_path_create_unique_child(
+                self.raw.as_ptr(),
+                prefix.as_ptr(),
+            )
         }))
     }
 
     pub fn path_get_value(&self, path: &str) -> Result<Option<PropertyList>> {
         let path = bridge::cstring(path, "sc_preferences_path_get_value")?;
-        let raw = unsafe { ffi::preferences::sc_preferences_path_get_value(self.raw.as_ptr(), path.as_ptr()) };
+        let raw = unsafe {
+            ffi::preferences::sc_preferences_path_get_value(self.raw.as_ptr(), path.as_ptr())
+        };
         Ok(unsafe { bridge::OwnedHandle::from_raw(raw) }.map(PropertyList::from_owned_handle))
     }
 
@@ -316,7 +354,11 @@ impl Preferences {
     pub fn path_set_value(&self, path: &str, value: &PropertyList) -> Result<()> {
         let path = bridge::cstring(path, "sc_preferences_path_set_value")?;
         let ok = unsafe {
-            ffi::preferences::sc_preferences_path_set_value(self.raw.as_ptr(), path.as_ptr(), value.as_ptr())
+            ffi::preferences::sc_preferences_path_set_value(
+                self.raw.as_ptr(),
+                path.as_ptr(),
+                value.as_ptr(),
+            )
         };
         bridge::bool_result("sc_preferences_path_set_value", ok)
     }
@@ -325,14 +367,20 @@ impl Preferences {
         let path = bridge::cstring(path, "sc_preferences_path_set_link")?;
         let link = bridge::cstring(link, "sc_preferences_path_set_link")?;
         let ok = unsafe {
-            ffi::preferences::sc_preferences_path_set_link(self.raw.as_ptr(), path.as_ptr(), link.as_ptr())
+            ffi::preferences::sc_preferences_path_set_link(
+                self.raw.as_ptr(),
+                path.as_ptr(),
+                link.as_ptr(),
+            )
         };
         bridge::bool_result("sc_preferences_path_set_link", ok)
     }
 
     pub fn path_remove_value(&self, path: &str) -> Result<()> {
         let path = bridge::cstring(path, "sc_preferences_path_remove_value")?;
-        let ok = unsafe { ffi::preferences::sc_preferences_path_remove_value(self.raw.as_ptr(), path.as_ptr()) };
+        let ok = unsafe {
+            ffi::preferences::sc_preferences_path_remove_value(self.raw.as_ptr(), path.as_ptr())
+        };
         bridge::bool_result("sc_preferences_path_remove_value", ok)
     }
 
@@ -341,7 +389,8 @@ impl Preferences {
         let ok = unsafe {
             ffi::preferences::sc_preferences_set_computer_name(
                 self.raw.as_ptr(),
-                name.as_ref().map_or(std::ptr::null(), |value| value.as_ptr()),
+                name.as_ref()
+                    .map_or(std::ptr::null(), |value| value.as_ptr()),
             )
         };
         bridge::bool_result("sc_preferences_set_computer_name", ok)
@@ -352,7 +401,8 @@ impl Preferences {
         let ok = unsafe {
             ffi::preferences::sc_preferences_set_local_host_name(
                 self.raw.as_ptr(),
-                name.as_ref().map_or(std::ptr::null(), |value| value.as_ptr()),
+                name.as_ref()
+                    .map_or(std::ptr::null(), |value| value.as_ptr()),
             )
         };
         bridge::bool_result("sc_preferences_set_local_host_name", ok)

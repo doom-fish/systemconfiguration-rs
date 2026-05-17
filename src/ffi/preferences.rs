@@ -2,7 +2,8 @@ use std::ffi::{c_char, c_void};
 
 use super::core::Handle;
 
-pub(crate) type PreferencesCallback = Option<unsafe extern "C" fn(notification_type: u32, info: *mut c_void)>;
+pub(crate) type PreferencesCallback =
+    Option<unsafe extern "C" fn(notification_type: u32, info: *mut c_void)>;
 
 unsafe extern "C" {
     pub(crate) fn sc_preferences_get_type_id() -> u64;
@@ -32,11 +33,22 @@ unsafe extern "C" {
     pub(crate) fn sc_preferences_unschedule_from_run_loop_current(raw: Handle) -> u8;
     pub(crate) fn sc_preferences_set_dispatch_queue_global(raw: Handle) -> u8;
     pub(crate) fn sc_preferences_clear_dispatch_queue(raw: Handle) -> u8;
-    pub(crate) fn sc_preferences_path_create_unique_child(raw: Handle, prefix: *const c_char) -> Handle;
+    pub(crate) fn sc_preferences_path_create_unique_child(
+        raw: Handle,
+        prefix: *const c_char,
+    ) -> Handle;
     pub(crate) fn sc_preferences_path_get_value(raw: Handle, path: *const c_char) -> Handle;
     pub(crate) fn sc_preferences_path_get_link(raw: Handle, path: *const c_char) -> Handle;
-    pub(crate) fn sc_preferences_path_set_value(raw: Handle, path: *const c_char, value: Handle) -> u8;
-    pub(crate) fn sc_preferences_path_set_link(raw: Handle, path: *const c_char, link: *const c_char) -> u8;
+    pub(crate) fn sc_preferences_path_set_value(
+        raw: Handle,
+        path: *const c_char,
+        value: Handle,
+    ) -> u8;
+    pub(crate) fn sc_preferences_path_set_link(
+        raw: Handle,
+        path: *const c_char,
+        link: *const c_char,
+    ) -> u8;
     pub(crate) fn sc_preferences_path_remove_value(raw: Handle, path: *const c_char) -> u8;
     pub(crate) fn sc_preferences_set_computer_name(raw: Handle, name: *const c_char) -> u8;
     pub(crate) fn sc_preferences_set_local_host_name(raw: Handle, name: *const c_char) -> u8;

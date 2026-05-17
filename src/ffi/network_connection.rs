@@ -2,7 +2,8 @@ use std::ffi::{c_char, c_void};
 
 use super::core::Handle;
 
-pub(crate) type NetworkConnectionCallback = Option<unsafe extern "C" fn(status: i32, info: *mut c_void)>;
+pub(crate) type NetworkConnectionCallback =
+    Option<unsafe extern "C" fn(status: i32, info: *mut c_void)>;
 
 unsafe extern "C" {
     pub(crate) fn sc_network_connection_get_type_id() -> u64;
@@ -18,7 +19,11 @@ unsafe extern "C" {
     pub(crate) fn sc_network_connection_copy_extended_status(raw: Handle) -> Handle;
     pub(crate) fn sc_network_connection_copy_statistics(raw: Handle) -> Handle;
     pub(crate) fn sc_network_connection_copy_user_options(raw: Handle) -> Handle;
-    pub(crate) fn sc_network_connection_start(raw: Handle, user_options_raw: Handle, linger: u8) -> u8;
+    pub(crate) fn sc_network_connection_start(
+        raw: Handle,
+        user_options_raw: Handle,
+        linger: u8,
+    ) -> u8;
     pub(crate) fn sc_network_connection_stop(raw: Handle, force_disconnect: u8) -> u8;
     pub(crate) fn sc_network_connection_schedule_with_run_loop_current(raw: Handle) -> u8;
     pub(crate) fn sc_network_connection_unschedule_from_run_loop_current(raw: Handle) -> u8;

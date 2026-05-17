@@ -31,13 +31,16 @@ impl std::fmt::Debug for BondStatus {
 
 impl BondInterface {
     pub fn copy_all(preferences: &Preferences) -> Vec<Self> {
-        let raw = unsafe { ffi::network_interface::sc_bond_interface_copy_all(preferences.as_ptr()) };
+        let raw =
+            unsafe { ffi::network_interface::sc_bond_interface_copy_all(preferences.as_ptr()) };
         bridge::take_handle_array(raw, Self::from_owned_handle)
     }
 
     pub fn copy_available_member_interfaces(preferences: &Preferences) -> Vec<NetworkInterface> {
         let raw = unsafe {
-            ffi::network_interface::sc_bond_interface_copy_available_member_interfaces(preferences.as_ptr())
+            ffi::network_interface::sc_bond_interface_copy_available_member_interfaces(
+                preferences.as_ptr(),
+            )
         };
         bridge::take_handle_array(raw, NetworkInterface::from_owned_handle)
     }
@@ -49,13 +52,19 @@ impl BondInterface {
     }
 
     pub fn member_interfaces(&self) -> Vec<NetworkInterface> {
-        let raw = unsafe { ffi::network_interface::sc_bond_interface_copy_member_interfaces(self.raw.as_ptr()) };
+        let raw = unsafe {
+            ffi::network_interface::sc_bond_interface_copy_member_interfaces(self.raw.as_ptr())
+        };
         bridge::take_handle_array(raw, NetworkInterface::from_owned_handle)
     }
 
     pub fn options(&self) -> Option<PropertyList> {
-        unsafe { bridge::OwnedHandle::from_raw(ffi::network_interface::sc_bond_interface_copy_options(self.raw.as_ptr())) }
-            .map(PropertyList::from_owned_handle)
+        unsafe {
+            bridge::OwnedHandle::from_raw(ffi::network_interface::sc_bond_interface_copy_options(
+                self.raw.as_ptr(),
+            ))
+        }
+        .map(PropertyList::from_owned_handle)
     }
 
     pub fn remove(&self) -> Result<()> {
@@ -66,7 +75,10 @@ impl BondInterface {
     pub fn set_localized_display_name(&self, name: &str) -> Result<()> {
         let name = bridge::cstring(name, "sc_bond_interface_set_localized_display_name")?;
         let ok = unsafe {
-            ffi::network_interface::sc_bond_interface_set_localized_display_name(self.raw.as_ptr(), name.as_ptr())
+            ffi::network_interface::sc_bond_interface_set_localized_display_name(
+                self.raw.as_ptr(),
+                name.as_ptr(),
+            )
         };
         bridge::bool_result("sc_bond_interface_set_localized_display_name", ok)
     }
@@ -85,14 +97,21 @@ impl BondInterface {
 
     pub fn set_options(&self, options: &PropertyList) -> Result<()> {
         let ok = unsafe {
-            ffi::network_interface::sc_bond_interface_set_options(self.raw.as_ptr(), options.as_ptr())
+            ffi::network_interface::sc_bond_interface_set_options(
+                self.raw.as_ptr(),
+                options.as_ptr(),
+            )
         };
         bridge::bool_result("sc_bond_interface_set_options", ok)
     }
 
     pub fn status(&self) -> Option<BondStatus> {
-        unsafe { bridge::OwnedHandle::from_raw(ffi::network_interface::sc_bond_interface_copy_status(self.raw.as_ptr())) }
-            .map(BondStatus::from_owned_handle)
+        unsafe {
+            bridge::OwnedHandle::from_raw(ffi::network_interface::sc_bond_interface_copy_status(
+                self.raw.as_ptr(),
+            ))
+        }
+        .map(BondStatus::from_owned_handle)
     }
 
     pub fn as_network_interface(&self) -> NetworkInterface {
@@ -102,7 +121,6 @@ impl BondInterface {
     pub(crate) fn from_owned_handle(raw: bridge::OwnedHandle) -> Self {
         Self { raw }
     }
-
 }
 
 impl BondStatus {
@@ -147,7 +165,9 @@ impl BondStatus {
     }
 
     pub fn member_interfaces(&self) -> Vec<NetworkInterface> {
-        let raw = unsafe { ffi::network_interface::sc_bond_status_copy_member_interfaces(self.raw.as_ptr()) };
+        let raw = unsafe {
+            ffi::network_interface::sc_bond_status_copy_member_interfaces(self.raw.as_ptr())
+        };
         bridge::take_handle_array(raw, NetworkInterface::from_owned_handle)
     }
 

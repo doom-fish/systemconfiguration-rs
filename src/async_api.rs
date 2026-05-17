@@ -54,7 +54,9 @@ unsafe fn drop_sender<T>(raw: *mut c_void) {
     if raw.is_null() {
         return;
     }
-    unsafe { drop(Box::from_raw(raw.cast::<AsyncStreamSender<T>>())); }
+    unsafe {
+        drop(Box::from_raw(raw.cast::<AsyncStreamSender<T>>()));
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -82,7 +84,12 @@ unsafe extern "C" fn dynamic_store_async_cb(kind: i32, payload: *mut c_void, ctx
 }
 
 impl DynamicStoreNotificationStream {
-    pub fn subscribe(name: &str, keys: &[&str], patterns: &[&str], capacity: usize) -> Result<Self> {
+    pub fn subscribe(
+        name: &str,
+        keys: &[&str],
+        patterns: &[&str],
+        capacity: usize,
+    ) -> Result<Self> {
         let c_name = bridge::cstring(name, "sc_dynamic_store_notification_subscribe")?;
         let c_keys = CStringArray::new(keys, "sc_dynamic_store_notification_subscribe")?;
         let c_patterns = CStringArray::new(patterns, "sc_dynamic_store_notification_subscribe")?;
@@ -103,7 +110,9 @@ impl DynamicStoreNotificationStream {
         };
 
         if handle_ptr.is_null() {
-            unsafe { drop(Box::from_raw(sender_ptr)); }
+            unsafe {
+                drop(Box::from_raw(sender_ptr));
+            }
             return Err(SystemConfigurationError::last(
                 "sc_dynamic_store_notification_subscribe",
             ));
@@ -169,7 +178,9 @@ impl ReachabilityStream {
         };
 
         if handle_ptr.is_null() {
-            unsafe { drop(Box::from_raw(sender_ptr)); }
+            unsafe {
+                drop(Box::from_raw(sender_ptr));
+            }
             return Err(SystemConfigurationError::last(
                 "sc_reachability_notification_subscribe",
             ));
@@ -235,7 +246,9 @@ impl PreferencesNotificationStream {
         };
 
         if handle_ptr.is_null() {
-            unsafe { drop(Box::from_raw(sender_ptr)); }
+            unsafe {
+                drop(Box::from_raw(sender_ptr));
+            }
             return Err(SystemConfigurationError::last(
                 "sc_preferences_notification_subscribe",
             ));

@@ -1,3 +1,4 @@
+pub(crate) mod async_api;
 pub(crate) mod captive_network;
 pub(crate) mod console_user;
 pub(crate) mod core;
@@ -12,4 +13,3 @@ pub(crate) mod network_sets;
 pub(crate) mod preferences;
 pub(crate) mod schema;
 pub(crate) mod system_configuration;
-pub(crate) mod async_api;

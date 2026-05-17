@@ -18,5 +18,9 @@ unsafe extern "C" {
     pub(crate) fn sc_network_set_remove_service(raw: Handle, service_raw: Handle) -> u8;
     pub(crate) fn sc_network_set_set_current(raw: Handle) -> u8;
     pub(crate) fn sc_network_set_set_name(raw: Handle, name: *const c_char) -> u8;
-    pub(crate) fn sc_network_set_set_service_order(raw: Handle, values: *const *const c_char, count: isize) -> u8;
+    pub(crate) fn sc_network_set_set_service_order(
+        raw: Handle,
+        values: *const *const c_char,
+        count: isize,
+    ) -> u8;
 }

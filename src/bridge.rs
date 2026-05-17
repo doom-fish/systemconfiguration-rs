@@ -49,7 +49,10 @@ pub(crate) fn bool_result(function: &'static str, value: u8) -> Result<()> {
 
 pub(crate) fn cstring(value: &str, function: &'static str) -> Result<CString> {
     CString::new(value).map_err(|_| {
-        SystemConfigurationError::null(function, "strings passed over FFI cannot contain interior NUL bytes")
+        SystemConfigurationError::null(
+            function,
+            "strings passed over FFI cannot contain interior NUL bytes",
+        )
     })
 }
 
@@ -192,8 +195,10 @@ pub(crate) fn parse_json<T>(function: &'static str, raw: RawHandle) -> Result<T>
 where
     T: DeserializeOwned,
 {
-    let json = take_optional_string(raw)
-        .ok_or_else(|| SystemConfigurationError::null(function, "bridge returned null JSON payload"))?;
-    serde_json::from_str(&json)
-        .map_err(|error| SystemConfigurationError::new(function, 0, format!("failed to parse bridge JSON: {error}")))
+    let json = take_optional_string(raw).ok_or_else(|| {
+        SystemConfigurationError::null(function, "bridge returned null JSON payload")
+    })?;
+    serde_json::from_str(&json).map_err(|error| {
+        SystemConfigurationError::new(function, 0, format!("failed to parse bridge JSON: {error}"))
+    })
 }

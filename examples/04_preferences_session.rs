@@ -6,7 +6,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("key_count={}", keys.len());
     if let Some(first_key) = keys.first() {
         println!("first_key={first_key}");
-        println!("first_value_present={}", prefs.get_value(first_key)?.is_some());
+        println!(
+            "first_value_present={}",
+            prefs.get_value(first_key)?.is_some()
+        );
     }
     println!("signature_present={}", prefs.signature().is_some());
     Ok(())
