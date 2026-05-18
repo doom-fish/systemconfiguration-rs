@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.5.0] - 2026-05-18
+
+### Changed
+
+- Re-exported the raw `CFAllocatorRef`, `CFArrayRef`, `CFDataRef`, `CFDateRef`,
+  `CFDictionaryRef`, `CFPropertyListRef`, `CFRunLoopRef`, and `CFStringRef`
+  typedefs from `apple-cf` in `raw_ffi`, removing the crate-local duplicates.
+- Added `apple-cf` (`>=0.8, <0.9`) with `default-features = false` and the
+  `cg` feature enabled for shared CoreFoundation/CoreGraphics type coverage.
+- Bumped the crate version to `0.5.0`.
 
 ## [0.4.1] - 2026-05-18
 
