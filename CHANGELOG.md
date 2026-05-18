@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.3] - 2026-05-18
+
+### Changed
+
+- Added one-line rustdoc coverage across the safe wrapper surface and `schema_definitions`, bringing `cargo +nightly rustdoc --lib --all-features -- -Z unstable-options --show-coverage` to 77.0% documented items.
+- Bumped the crate version to `0.5.3`.
+
 ## [0.5.2] - 2026-05-18
 
 ### Changed

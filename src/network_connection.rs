@@ -5,19 +5,28 @@ use std::{
 
 use crate::{bridge, error::Result, ffi, PropertyList, ReachabilityFlags};
 
+/// Alias for `SCNetworkConnectionFlags` values.
 pub type NetworkConnectionFlags = ReachabilityFlags;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+/// Wraps `SCNetworkConnectionStatus`.
 pub enum NetworkConnectionStatus {
+    /// Wraps the `Invalid` `SCNetworkConnectionStatus` value.
     Invalid,
+    /// Wraps the `Disconnected` `SCNetworkConnectionStatus` value.
     Disconnected,
+    /// Wraps the `Connecting` `SCNetworkConnectionStatus` value.
     Connecting,
+    /// Wraps the `Connected` `SCNetworkConnectionStatus` value.
     Connected,
+    /// Wraps the `Disconnecting` `SCNetworkConnectionStatus` value.
     Disconnecting,
+    /// Wraps an unknown `SCNetworkConnectionStatus` value.
     Unknown(i32),
 }
 
 impl NetworkConnectionStatus {
+    /// Wraps conversion from raw `SCNetworkConnectionStatus` values.
     pub const fn from_raw(raw: i32) -> Self {
         match raw {
             -1 => Self::Invalid,
@@ -29,6 +38,7 @@ impl NetworkConnectionStatus {
         }
     }
 
+    /// Wraps conversion to raw `SCNetworkConnectionStatus` values.
     pub const fn raw_value(self) -> i32 {
         match self {
             Self::Invalid => -1,
@@ -42,25 +52,42 @@ impl NetworkConnectionStatus {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+/// Wraps `SCNetworkConnectionPPPStatus`.
 pub enum NetworkConnectionPppStatus {
+    /// Wraps the `Disconnected` `SCNetworkConnectionPPPStatus` value.
     Disconnected,
+    /// Wraps the `Initializing` `SCNetworkConnectionPPPStatus` value.
     Initializing,
+    /// Wraps the `ConnectingLink` `SCNetworkConnectionPPPStatus` value.
     ConnectingLink,
+    /// Wraps the `DialOnTraffic` `SCNetworkConnectionPPPStatus` value.
     DialOnTraffic,
+    /// Wraps the `NegotiatingLink` `SCNetworkConnectionPPPStatus` value.
     NegotiatingLink,
+    /// Wraps the `Authenticating` `SCNetworkConnectionPPPStatus` value.
     Authenticating,
+    /// Wraps the `WaitingForCallback` `SCNetworkConnectionPPPStatus` value.
     WaitingForCallback,
+    /// Wraps the `NegotiatingNetwork` `SCNetworkConnectionPPPStatus` value.
     NegotiatingNetwork,
+    /// Wraps the `Connected` `SCNetworkConnectionPPPStatus` value.
     Connected,
+    /// Wraps the `Terminating` `SCNetworkConnectionPPPStatus` value.
     Terminating,
+    /// Wraps the `DisconnectingLink` `SCNetworkConnectionPPPStatus` value.
     DisconnectingLink,
+    /// Wraps the `HoldingLinkOff` `SCNetworkConnectionPPPStatus` value.
     HoldingLinkOff,
+    /// Wraps the `Suspended` `SCNetworkConnectionPPPStatus` value.
     Suspended,
+    /// Wraps the `WaitingForRedial` `SCNetworkConnectionPPPStatus` value.
     WaitingForRedial,
+    /// Wraps an unknown `SCNetworkConnectionPPPStatus` value.
     Unknown(i32),
 }
 
 impl NetworkConnectionPppStatus {
+    /// Wraps conversion from raw `SCNetworkConnectionPPPStatus` values.
     pub const fn from_raw(raw: i32) -> Self {
         match raw {
             0 => Self::Disconnected,
@@ -81,6 +108,7 @@ impl NetworkConnectionPppStatus {
         }
     }
 
+    /// Wraps conversion to raw `SCNetworkConnectionPPPStatus` values.
     pub const fn raw_value(self) -> i32 {
         match self {
             Self::Disconnected => 0,
@@ -103,8 +131,11 @@ impl NetworkConnectionPppStatus {
 }
 
 #[derive(Clone, Debug)]
+/// Wraps `SCNetworkConnectionCopyUserPreferences` results.
 pub struct NetworkConnectionUserPreferences {
+    /// Wraps the service identifier returned by `SCNetworkConnectionCopyUserPreferences`.
     pub service_id: String,
+    /// Wraps the user options returned by `SCNetworkConnectionCopyUserPreferences`.
     pub user_options: Option<PropertyList>,
 }
 
@@ -124,6 +155,7 @@ unsafe extern "C" fn network_connection_callback(status: i32, info: *mut c_void)
 }
 
 #[derive(Clone)]
+/// Wraps `SCNetworkConnectionRef`.
 pub struct NetworkConnection {
     raw: bridge::OwnedHandle,
     _callback: Option<Arc<Mutex<CallbackState>>>,
@@ -136,14 +168,17 @@ impl std::fmt::Debug for NetworkConnection {
 }
 
 impl NetworkConnection {
+    /// Wraps `SCNetworkConnectionGetTypeID`.
     pub fn type_id() -> u64 {
         unsafe { ffi::network_connection::sc_network_connection_get_type_id() }
     }
 
+    /// Wraps `SCNetworkConnectionCreateWithServiceID`.
     pub fn with_service_id(service_id: &str) -> Result<Self> {
         Self::create(service_id, None)
     }
 
+    /// Wraps `SCNetworkConnectionCreateWithServiceID` with an `SCNetworkConnectionCallBack`.
     pub fn with_service_id_and_callback<F>(service_id: &str, callback: F) -> Result<Self>
     where
         F: FnMut(NetworkConnectionStatus) + Send + 'static,
@@ -176,6 +211,7 @@ impl NetworkConnection {
         })
     }
 
+    /// Wraps `SCNetworkConnectionCopyUserPreferences`.
     pub fn copy_user_preferences() -> Result<NetworkConnectionUserPreferences> {
         let service_id = bridge::take_optional_string(unsafe {
             ffi::network_connection::sc_network_connection_copy_user_preferences_service_id()
@@ -197,18 +233,21 @@ impl NetworkConnection {
         })
     }
 
+    /// Wraps `SCNetworkConnectionCopyServiceID`.
     pub fn service_id(&self) -> Result<Option<String>> {
         Ok(bridge::take_optional_string(unsafe {
             ffi::network_connection::sc_network_connection_copy_service_id(self.raw.as_ptr())
         }))
     }
 
+    /// Wraps `SCNetworkConnectionGetStatus`.
     pub fn status(&self) -> NetworkConnectionStatus {
         NetworkConnectionStatus::from_raw(unsafe {
             ffi::network_connection::sc_network_connection_get_status(self.raw.as_ptr())
         })
     }
 
+    /// Wraps `SCNetworkConnectionCopyExtendedStatus`.
     pub fn extended_status(&self) -> Option<PropertyList> {
         unsafe {
             bridge::OwnedHandle::from_raw(
@@ -220,6 +259,7 @@ impl NetworkConnection {
         .map(PropertyList::from_owned_handle)
     }
 
+    /// Wraps `SCNetworkConnectionCopyStatistics`.
     pub fn statistics(&self) -> Option<PropertyList> {
         unsafe {
             bridge::OwnedHandle::from_raw(
@@ -229,6 +269,7 @@ impl NetworkConnection {
         .map(PropertyList::from_owned_handle)
     }
 
+    /// Wraps `SCNetworkConnectionCopyUserOptions`.
     pub fn user_options(&self) -> Option<PropertyList> {
         unsafe {
             bridge::OwnedHandle::from_raw(
@@ -238,6 +279,7 @@ impl NetworkConnection {
         .map(PropertyList::from_owned_handle)
     }
 
+    /// Wraps `SCNetworkConnectionStart`.
     pub fn start(&self, user_options: Option<&PropertyList>, linger: bool) -> Result<()> {
         let ok = unsafe {
             ffi::network_connection::sc_network_connection_start(
@@ -249,6 +291,7 @@ impl NetworkConnection {
         bridge::bool_result("sc_network_connection_start", ok)
     }
 
+    /// Wraps `SCNetworkConnectionStop`.
     pub fn stop(&self, force_disconnect: bool) -> Result<()> {
         let ok = unsafe {
             ffi::network_connection::sc_network_connection_stop(
@@ -259,6 +302,7 @@ impl NetworkConnection {
         bridge::bool_result("sc_network_connection_stop", ok)
     }
 
+    /// Wraps `SCNetworkConnectionScheduleWithRunLoopCurrent`.
     pub fn schedule_with_run_loop_current(&self) -> Result<()> {
         let ok = unsafe {
             ffi::network_connection::sc_network_connection_schedule_with_run_loop_current(
@@ -268,6 +312,7 @@ impl NetworkConnection {
         bridge::bool_result("sc_network_connection_schedule_with_run_loop_current", ok)
     }
 
+    /// Wraps `SCNetworkConnectionUnscheduleFromRunLoopCurrent`.
     pub fn unschedule_from_run_loop_current(&self) -> Result<()> {
         let ok = unsafe {
             ffi::network_connection::sc_network_connection_unschedule_from_run_loop_current(
@@ -277,6 +322,7 @@ impl NetworkConnection {
         bridge::bool_result("sc_network_connection_unschedule_from_run_loop_current", ok)
     }
 
+    /// Wraps `SCNetworkConnectionSetDispatchQueueGlobal`.
     pub fn set_dispatch_queue_global(&self) -> Result<()> {
         let ok = unsafe {
             ffi::network_connection::sc_network_connection_set_dispatch_queue_global(
@@ -286,6 +332,7 @@ impl NetworkConnection {
         bridge::bool_result("sc_network_connection_set_dispatch_queue_global", ok)
     }
 
+    /// Wraps `SCNetworkConnectionClearDispatchQueue`.
     pub fn clear_dispatch_queue(&self) -> Result<()> {
         let ok = unsafe {
             ffi::network_connection::sc_network_connection_clear_dispatch_queue(self.raw.as_ptr())

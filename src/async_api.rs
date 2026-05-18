@@ -70,10 +70,13 @@ unsafe fn drop_sender<T>(raw: *mut c_void) {
 }
 
 #[derive(Debug, Clone)]
+/// Wraps a callback payload from `SCDynamicStoreSetNotificationKeys`.
 pub struct DynamicStoreNotificationEvent {
+    /// Wraps the changed keys delivered by `SCDynamicStoreSetNotificationKeys`.
     pub changed_keys: Vec<String>,
 }
 
+/// Wraps async `SCDynamicStore` notifications.
 pub struct DynamicStoreNotificationStream {
     inner: BoundedAsyncStream<DynamicStoreNotificationEvent>,
     _handle: SubscriptionHandle,
@@ -94,13 +97,13 @@ unsafe extern "C" fn dynamic_store_async_cb(kind: i32, payload: *mut c_void, ctx
     } else {
         bridge::take_string_array(payload)
     };
-    doom_fish_utils::panic_safe::catch_user_panic(
-        "dynamic_store_async_cb",
-        || sender.push(DynamicStoreNotificationEvent { changed_keys }),
-    );
+    doom_fish_utils::panic_safe::catch_user_panic("dynamic_store_async_cb", || {
+        sender.push(DynamicStoreNotificationEvent { changed_keys });
+    });
 }
 
 impl DynamicStoreNotificationStream {
+    /// Wraps `SCDynamicStoreNotificationSubscribe`.
     pub fn subscribe(
         name: &str,
         keys: &[&str],
@@ -145,24 +148,30 @@ impl DynamicStoreNotificationStream {
         })
     }
 
+    /// Wraps the next buffered `SCDynamicStore` notification.
     pub const fn next(&self) -> NextItem<'_, DynamicStoreNotificationEvent> {
         self.inner.next()
     }
 
+    /// Wraps a helper on `SCDynamicStore`.
     pub fn try_next(&self) -> Option<DynamicStoreNotificationEvent> {
         self.inner.try_next()
     }
 
+    /// Wraps a helper on `SCDynamicStore`.
     pub fn buffered_count(&self) -> usize {
         self.inner.buffered_count()
     }
 }
 
 #[derive(Debug, Clone, Copy)]
+/// Wraps a callback payload from `SCNetworkReachabilitySetCallback`.
 pub struct ReachabilityEvent {
+    /// Wraps the reachability flags delivered by `SCNetworkReachabilitySetCallback`.
     pub flags: ReachabilityFlags,
 }
 
+/// Wraps async `SCNetworkReachability` notifications.
 pub struct ReachabilityStream {
     inner: BoundedAsyncStream<ReachabilityEvent>,
     _handle: SubscriptionHandle,
@@ -187,6 +196,7 @@ unsafe extern "C" fn reachability_async_cb(kind: i32, _payload: *mut c_void, ctx
 }
 
 impl ReachabilityStream {
+    /// Wraps `SCReachabilityNotificationSubscribe`.
     pub fn subscribe(name: &str, capacity: usize) -> Result<Self> {
         let c_name = bridge::cstring(name, "sc_reachability_notification_subscribe")?;
 
@@ -220,24 +230,30 @@ impl ReachabilityStream {
         })
     }
 
+    /// Wraps the next buffered `SCNetworkReachability` notification.
     pub const fn next(&self) -> NextItem<'_, ReachabilityEvent> {
         self.inner.next()
     }
 
+    /// Wraps a helper on `SCNetworkReachability`.
     pub fn try_next(&self) -> Option<ReachabilityEvent> {
         self.inner.try_next()
     }
 
+    /// Wraps a helper on `SCNetworkReachability`.
     pub fn buffered_count(&self) -> usize {
         self.inner.buffered_count()
     }
 }
 
 #[derive(Debug, Clone, Copy)]
+/// Wraps a callback payload from `SCPreferencesSetCallback`.
 pub struct PreferencesNotificationEvent {
+    /// Wraps the notification flags delivered by `SCPreferencesSetCallback`.
     pub notification: PreferencesNotification,
 }
 
+/// Wraps async `SCPreferences` notifications.
 pub struct PreferencesNotificationStream {
     inner: BoundedAsyncStream<PreferencesNotificationEvent>,
     _handle: SubscriptionHandle,
@@ -254,14 +270,13 @@ unsafe extern "C" fn preferences_async_cb(kind: i32, _payload: *mut c_void, ctx:
     let sender = unsafe { &*ctx.cast::<AsyncStreamSender<PreferencesNotificationEvent>>() };
     doom_fish_utils::panic_safe::catch_user_panic("preferences_async_cb", || {
         sender.push(PreferencesNotificationEvent {
-            notification: PreferencesNotification::from_raw(u32::from_ne_bytes(
-                kind.to_ne_bytes(),
-            )),
+            notification: PreferencesNotification::from_raw(u32::from_ne_bytes(kind.to_ne_bytes())),
         });
     });
 }
 
 impl PreferencesNotificationStream {
+    /// Wraps `SCPreferencesNotificationSubscribe`.
     pub fn subscribe(name: &str, capacity: usize) -> Result<Self> {
         let c_name = bridge::cstring(name, "sc_preferences_notification_subscribe")?;
 
@@ -295,14 +310,17 @@ impl PreferencesNotificationStream {
         })
     }
 
+    /// Wraps the next buffered `SCPreferences` notification.
     pub const fn next(&self) -> NextItem<'_, PreferencesNotificationEvent> {
         self.inner.next()
     }
 
+    /// Wraps a helper on `SCPreferences`.
     pub fn try_next(&self) -> Option<PreferencesNotificationEvent> {
         self.inner.try_next()
     }
 
+    /// Wraps a helper on `SCPreferences`.
     pub fn buffered_count(&self) -> usize {
         self.inner.buffered_count()
     }

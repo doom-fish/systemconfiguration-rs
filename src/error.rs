@@ -2,12 +2,17 @@ use std::{error::Error, fmt};
 
 use crate::{bridge, ffi};
 
+/// Result alias used by SystemConfiguration wrapper APIs.
 pub type Result<T> = std::result::Result<T, SystemConfigurationError>;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+/// Wraps SystemConfiguration framework failures.
 pub struct SystemConfigurationError {
+    /// Wraps the failing SystemConfiguration entry point.
     pub function: &'static str,
+    /// Wraps the SystemConfiguration error code.
     pub code: i32,
+    /// Wraps the SystemConfiguration error message.
     pub message: String,
 }
 

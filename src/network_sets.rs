@@ -4,26 +4,31 @@ use crate::{
 };
 
 #[derive(Clone, Debug)]
+/// Wraps `SCNetworkSetRef`.
 pub struct NetworkSet {
     raw: bridge::OwnedHandle,
 }
 
 impl NetworkSet {
+    /// Wraps `SCNetworkSetGetTypeID`.
     pub fn type_id() -> u64 {
         unsafe { ffi::network_sets::sc_network_set_get_type_id() }
     }
 
+    /// Wraps `SCNetworkSetCopyAll`.
     pub fn copy_all(preferences: &Preferences) -> Vec<Self> {
         let raw = unsafe { ffi::network_sets::sc_network_set_copy_all(preferences.as_ptr()) };
         bridge::take_handle_array(raw, Self::from_owned_handle)
     }
 
+    /// Wraps `SCNetworkSetCreate`.
     pub fn create(preferences: &Preferences) -> Result<Self> {
         let raw = unsafe { ffi::network_sets::sc_network_set_create(preferences.as_ptr()) };
         let raw = bridge::owned_handle_or_last("sc_network_set_create", raw)?;
         Ok(Self { raw })
     }
 
+    /// Wraps `SCNetworkSetCopy`.
     pub fn copy(preferences: &Preferences, set_id: &str) -> Result<Option<Self>> {
         let set_id = bridge::cstring(set_id, "sc_network_set_copy")?;
         let raw = unsafe {
@@ -32,6 +37,7 @@ impl NetworkSet {
         Ok(unsafe { bridge::OwnedHandle::from_raw(raw) }.map(Self::from_owned_handle))
     }
 
+    /// Wraps `SCNetworkSetCopyCurrent`.
     pub fn copy_current(preferences: &Preferences) -> Option<Self> {
         unsafe {
             bridge::OwnedHandle::from_raw(ffi::network_sets::sc_network_set_copy_current(
@@ -41,29 +47,34 @@ impl NetworkSet {
         .map(Self::from_owned_handle)
     }
 
+    /// Wraps `SCNetworkSetCopyServices`.
     pub fn copy_services(&self) -> Vec<NetworkService> {
         let raw = unsafe { ffi::network_sets::sc_network_set_copy_services(self.raw.as_ptr()) };
         bridge::take_handle_array(raw, NetworkService::from_owned_handle)
     }
 
+    /// Wraps `SCNetworkSetCopyName`.
     pub fn name(&self) -> Option<String> {
         bridge::take_optional_string(unsafe {
             ffi::network_sets::sc_network_set_copy_name(self.raw.as_ptr())
         })
     }
 
+    /// Wraps `SCNetworkSetCopySetID`.
     pub fn set_id(&self) -> Option<String> {
         bridge::take_optional_string(unsafe {
             ffi::network_sets::sc_network_set_copy_set_id(self.raw.as_ptr())
         })
     }
 
+    /// Wraps `SCNetworkSetCopyServiceOrder`.
     pub fn service_order(&self) -> Vec<String> {
         bridge::take_string_array(unsafe {
             ffi::network_sets::sc_network_set_copy_service_order(self.raw.as_ptr())
         })
     }
 
+    /// Wraps `SCNetworkSetContainsInterface`.
     pub fn contains_interface(&self, interface: &NetworkInterface) -> bool {
         unsafe {
             ffi::network_sets::sc_network_set_contains_interface(
@@ -73,6 +84,7 @@ impl NetworkSet {
         }
     }
 
+    /// Wraps `SCNetworkSetAddService`.
     pub fn add_service(&self, service: &NetworkService) -> Result<()> {
         let ok = unsafe {
             ffi::network_sets::sc_network_set_add_service(self.raw.as_ptr(), service.as_ptr())
@@ -80,11 +92,13 @@ impl NetworkSet {
         bridge::bool_result("sc_network_set_add_service", ok)
     }
 
+    /// Wraps `SCNetworkSetRemove`.
     pub fn remove(&self) -> Result<()> {
         let ok = unsafe { ffi::network_sets::sc_network_set_remove(self.raw.as_ptr()) };
         bridge::bool_result("sc_network_set_remove", ok)
     }
 
+    /// Wraps `SCNetworkSetRemoveService`.
     pub fn remove_service(&self, service: &NetworkService) -> Result<()> {
         let ok = unsafe {
             ffi::network_sets::sc_network_set_remove_service(self.raw.as_ptr(), service.as_ptr())
@@ -92,11 +106,13 @@ impl NetworkSet {
         bridge::bool_result("sc_network_set_remove_service", ok)
     }
 
+    /// Wraps `SCNetworkSetSetCurrent`.
     pub fn set_current(&self) -> Result<()> {
         let ok = unsafe { ffi::network_sets::sc_network_set_set_current(self.raw.as_ptr()) };
         bridge::bool_result("sc_network_set_set_current", ok)
     }
 
+    /// Wraps `SCNetworkSetSetName`.
     pub fn set_name(&self, name: Option<&str>) -> Result<()> {
         let name = bridge::optional_cstring(name, "sc_network_set_set_name")?;
         let ok = unsafe {
@@ -109,6 +125,7 @@ impl NetworkSet {
         bridge::bool_result("sc_network_set_set_name", ok)
     }
 
+    /// Wraps `SCNetworkSetSetServiceOrder`.
     pub fn set_service_order<S: AsRef<str>>(&self, values: &[S]) -> Result<()> {
         let values = bridge::CStringArray::new(values, "sc_network_set_set_service_order")?;
         let ok = unsafe {

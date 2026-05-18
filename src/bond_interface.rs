@@ -8,6 +8,7 @@ use crate::{
 };
 
 #[derive(Clone)]
+/// Wraps `SCBondInterfaceRef`.
 pub struct BondInterface {
     raw: bridge::OwnedHandle,
 }
@@ -19,6 +20,7 @@ impl std::fmt::Debug for BondInterface {
 }
 
 #[derive(Clone)]
+/// Wraps `SCBondStatusRef`.
 pub struct BondStatus {
     raw: bridge::OwnedHandle,
 }
@@ -30,12 +32,14 @@ impl std::fmt::Debug for BondStatus {
 }
 
 impl BondInterface {
+    /// Wraps `SCBondInterfaceCopyAll`.
     pub fn copy_all(preferences: &Preferences) -> Vec<Self> {
         let raw =
             unsafe { ffi::network_interface::sc_bond_interface_copy_all(preferences.as_ptr()) };
         bridge::take_handle_array(raw, Self::from_owned_handle)
     }
 
+    /// Wraps `SCBondInterfaceCopyAvailableMemberInterfaces`.
     pub fn copy_available_member_interfaces(preferences: &Preferences) -> Vec<NetworkInterface> {
         let raw = unsafe {
             ffi::network_interface::sc_bond_interface_copy_available_member_interfaces(
@@ -45,12 +49,14 @@ impl BondInterface {
         bridge::take_handle_array(raw, NetworkInterface::from_owned_handle)
     }
 
+    /// Wraps `SCBondInterfaceCreate`.
     pub fn create(preferences: &Preferences) -> Result<Self> {
         let raw = unsafe { ffi::network_interface::sc_bond_interface_create(preferences.as_ptr()) };
         let raw = bridge::owned_handle_or_last("sc_bond_interface_create", raw)?;
         Ok(Self { raw })
     }
 
+    /// Wraps `SCBondInterfaceCopyMemberInterfaces`.
     pub fn member_interfaces(&self) -> Vec<NetworkInterface> {
         let raw = unsafe {
             ffi::network_interface::sc_bond_interface_copy_member_interfaces(self.raw.as_ptr())
@@ -58,6 +64,7 @@ impl BondInterface {
         bridge::take_handle_array(raw, NetworkInterface::from_owned_handle)
     }
 
+    /// Wraps `SCBondInterfaceCopyOptions`.
     pub fn options(&self) -> Option<PropertyList> {
         unsafe {
             bridge::OwnedHandle::from_raw(ffi::network_interface::sc_bond_interface_copy_options(
@@ -67,11 +74,13 @@ impl BondInterface {
         .map(PropertyList::from_owned_handle)
     }
 
+    /// Wraps `SCBondInterfaceRemove`.
     pub fn remove(&self) -> Result<()> {
         let ok = unsafe { ffi::network_interface::sc_bond_interface_remove(self.raw.as_ptr()) };
         bridge::bool_result("sc_bond_interface_remove", ok)
     }
 
+    /// Wraps `SCBondInterfaceSetLocalizedDisplayName`.
     pub fn set_localized_display_name(&self, name: &str) -> Result<()> {
         let name = bridge::cstring(name, "sc_bond_interface_set_localized_display_name")?;
         let ok = unsafe {
@@ -83,6 +92,7 @@ impl BondInterface {
         bridge::bool_result("sc_bond_interface_set_localized_display_name", ok)
     }
 
+    /// Wraps `SCBondInterfaceSetMemberInterfaces`.
     pub fn set_member_interfaces(&self, members: &[NetworkInterface]) -> Result<()> {
         let members = HandleArray::new(members, NetworkInterface::as_ptr);
         let ok = unsafe {
@@ -95,6 +105,7 @@ impl BondInterface {
         bridge::bool_result("sc_bond_interface_set_member_interfaces", ok)
     }
 
+    /// Wraps `SCBondInterfaceSetOptions`.
     pub fn set_options(&self, options: &PropertyList) -> Result<()> {
         let ok = unsafe {
             ffi::network_interface::sc_bond_interface_set_options(
@@ -105,6 +116,7 @@ impl BondInterface {
         bridge::bool_result("sc_bond_interface_set_options", ok)
     }
 
+    /// Wraps `SCBondInterfaceCopyStatus`.
     pub fn status(&self) -> Option<BondStatus> {
         unsafe {
             bridge::OwnedHandle::from_raw(ffi::network_interface::sc_bond_interface_copy_status(
@@ -114,6 +126,7 @@ impl BondInterface {
         .map(BondStatus::from_owned_handle)
     }
 
+    /// Wraps a helper on `SCBondInterfaceRef`.
     pub fn as_network_interface(&self) -> NetworkInterface {
         NetworkInterface::from_owned_handle(self.raw.clone())
     }
@@ -124,10 +137,12 @@ impl BondInterface {
 }
 
 impl BondStatus {
+    /// Wraps `SCBondStatusGetTypeID`.
     pub fn type_id() -> u64 {
         unsafe { ffi::network_interface::sc_bond_status_get_type_id() }
     }
 
+    /// Wraps `SCBondStatusCopyDeviceAggregationStatusKey`.
     pub fn device_aggregation_status_key() -> Result<String> {
         bridge::take_optional_string(unsafe {
             ffi::network_interface::sc_bond_status_copy_device_aggregation_status_key()
@@ -140,6 +155,7 @@ impl BondStatus {
         })
     }
 
+    /// Wraps `SCBondStatusCopyDeviceCollectingKey`.
     pub fn device_collecting_key() -> Result<String> {
         bridge::take_optional_string(unsafe {
             ffi::network_interface::sc_bond_status_copy_device_collecting_key()
@@ -152,6 +168,7 @@ impl BondStatus {
         })
     }
 
+    /// Wraps `SCBondStatusCopyDeviceDistributingKey`.
     pub fn device_distributing_key() -> Result<String> {
         bridge::take_optional_string(unsafe {
             ffi::network_interface::sc_bond_status_copy_device_distributing_key()
@@ -164,6 +181,7 @@ impl BondStatus {
         })
     }
 
+    /// Wraps `SCBondStatusCopyMemberInterfaces`.
     pub fn member_interfaces(&self) -> Vec<NetworkInterface> {
         let raw = unsafe {
             ffi::network_interface::sc_bond_status_copy_member_interfaces(self.raw.as_ptr())
@@ -171,6 +189,7 @@ impl BondStatus {
         bridge::take_handle_array(raw, NetworkInterface::from_owned_handle)
     }
 
+    /// Wraps `SCBondStatusCopyInterfaceStatus`.
     pub fn interface_status(&self, interface: Option<&NetworkInterface>) -> Option<PropertyList> {
         let raw = unsafe {
             ffi::network_interface::sc_bond_status_copy_interface_status(
@@ -181,6 +200,7 @@ impl BondStatus {
         unsafe { bridge::OwnedHandle::from_raw(raw) }.map(PropertyList::from_owned_handle)
     }
 
+    /// Wraps a helper on `SCBondStatusRef`.
     pub fn bond_status(&self) -> Result<PropertyList> {
         self.interface_status(None).ok_or_else(|| {
             SystemConfigurationError::null(

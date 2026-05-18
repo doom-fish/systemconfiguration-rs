@@ -36,6 +36,7 @@ unsafe extern "C" fn dynamic_store_callback(
 }
 
 #[derive(Clone)]
+/// Wraps `SCDynamicStoreRef`.
 pub struct DynamicStore {
     raw: bridge::OwnedHandle,
     _callback: Option<Arc<Mutex<CallbackState>>>,
@@ -48,6 +49,7 @@ impl std::fmt::Debug for DynamicStore {
 }
 
 #[derive(Clone)]
+/// Wraps the `CFRunLoopSourceRef` created by `SCDynamicStoreCreateRunLoopSource`.
 pub struct DynamicStoreRunLoopSource {
     raw: bridge::OwnedHandle,
 }
@@ -60,14 +62,17 @@ impl std::fmt::Debug for DynamicStoreRunLoopSource {
 }
 
 impl DynamicStore {
+    /// Wraps `SCDynamicStoreGetTypeID`.
     pub fn type_id() -> u64 {
         unsafe { ffi::dynamic_store::sc_dynamic_store_get_type_id() }
     }
 
+    /// Wraps `SCDynamicStoreCreate`.
     pub fn new(name: &str) -> Result<Self> {
         Self::create(name, None, false, None)
     }
 
+    /// Wraps `SCDynamicStoreCreate` with session-key notifications enabled.
     pub fn new_with_session_keys(name: &str) -> Result<Self> {
         Self::create(name, None, true, None)
     }
@@ -78,6 +83,7 @@ impl DynamicStore {
         Self::create(name, Some(options), false, None)
     }
 
+    /// Wraps `SCDynamicStoreCreate` with an `SCDynamicStoreCallBack`.
     pub fn new_with_callback<F>(name: &str, callback: F) -> Result<Self>
     where
         F: FnMut(Vec<String>) + Send + 'static,
@@ -104,6 +110,7 @@ impl DynamicStore {
         Self::create(name, Some(options), false, Some(callback))
     }
 
+    /// Wraps `SCDynamicStoreCreate` with session-key notifications and an `SCDynamicStoreCallBack`.
     pub fn new_with_session_keys_and_callback<F>(name: &str, callback: F) -> Result<Self>
     where
         F: FnMut(Vec<String>) + Send + 'static,
@@ -160,6 +167,7 @@ impl DynamicStore {
         })
     }
 
+    /// Wraps `SCDynamicStoreCopyValue`.
     pub fn copy_value(&self, key: &str) -> Result<Option<PropertyList>> {
         let key = bridge::cstring(key, "sc_dynamic_store_copy_value")?;
         let raw = unsafe {
@@ -168,6 +176,7 @@ impl DynamicStore {
         Ok(unsafe { bridge::OwnedHandle::from_raw(raw) }.map(PropertyList::from_owned_handle))
     }
 
+    /// Wraps `SCDynamicStoreCopyMultiple`.
     pub fn copy_multiple<K, P>(&self, keys: &[K], patterns: &[P]) -> Result<Option<PropertyList>>
     where
         K: AsRef<str>,
@@ -187,6 +196,7 @@ impl DynamicStore {
         Ok(unsafe { bridge::OwnedHandle::from_raw(raw) }.map(PropertyList::from_owned_handle))
     }
 
+    /// Wraps `SCDynamicStoreAddValue`.
     pub fn add_value(&self, key: &str, value: &PropertyList) -> Result<()> {
         let key = bridge::cstring(key, "sc_dynamic_store_add_value")?;
         let ok = unsafe {
@@ -199,6 +209,7 @@ impl DynamicStore {
         bridge::bool_result("sc_dynamic_store_add_value", ok)
     }
 
+    /// Wraps `SCDynamicStoreAddTemporaryValue`.
     pub fn add_temporary_value(&self, key: &str, value: &PropertyList) -> Result<()> {
         let key = bridge::cstring(key, "sc_dynamic_store_add_temporary_value")?;
         let ok = unsafe {
@@ -211,6 +222,7 @@ impl DynamicStore {
         bridge::bool_result("sc_dynamic_store_add_temporary_value", ok)
     }
 
+    /// Wraps `SCDynamicStoreSetValue`.
     pub fn set_value(&self, key: &str, value: &PropertyList) -> Result<()> {
         let key = bridge::cstring(key, "sc_dynamic_store_set_value")?;
         let ok = unsafe {
@@ -223,6 +235,7 @@ impl DynamicStore {
         bridge::bool_result("sc_dynamic_store_set_value", ok)
     }
 
+    /// Wraps `SCDynamicStoreSetMultiple`.
     pub fn set_multiple<R, N>(
         &self,
         keys_to_set: Option<&PropertyList>,
@@ -248,6 +261,7 @@ impl DynamicStore {
         bridge::bool_result("sc_dynamic_store_set_multiple", ok)
     }
 
+    /// Wraps `SCDynamicStoreRemoveValue`.
     pub fn remove_value(&self, key: &str) -> Result<()> {
         let key = bridge::cstring(key, "sc_dynamic_store_remove_value")?;
         let ok = unsafe {
@@ -256,6 +270,7 @@ impl DynamicStore {
         bridge::bool_result("sc_dynamic_store_remove_value", ok)
     }
 
+    /// Wraps `SCDynamicStoreNotifyValue`.
     pub fn notify_value(&self, key: &str) -> Result<()> {
         let key = bridge::cstring(key, "sc_dynamic_store_notify_value")?;
         let ok = unsafe {
@@ -264,6 +279,7 @@ impl DynamicStore {
         bridge::bool_result("sc_dynamic_store_notify_value", ok)
     }
 
+    /// Wraps `SCDynamicStoreCopyKeyList`.
     pub fn copy_key_list(&self, pattern: &str) -> Result<Vec<String>> {
         let pattern = bridge::cstring(pattern, "sc_dynamic_store_copy_key_list")?;
         let raw = unsafe {
@@ -272,6 +288,7 @@ impl DynamicStore {
         Ok(bridge::take_string_array(raw))
     }
 
+    /// Wraps `SCDynamicStoreSetNotificationKeys`.
     pub fn set_notification_keys<K, P>(&self, keys: &[K], patterns: &[P]) -> Result<()>
     where
         K: AsRef<str>,
@@ -291,6 +308,7 @@ impl DynamicStore {
         bridge::bool_result("sc_dynamic_store_set_notification_keys", ok)
     }
 
+    /// Wraps `SCDynamicStoreCreateRunLoopSource`.
     pub fn create_run_loop_source(&self, order: isize) -> Result<DynamicStoreRunLoopSource> {
         let raw = unsafe {
             ffi::dynamic_store::sc_dynamic_store_create_run_loop_source(self.raw.as_ptr(), order)
@@ -299,6 +317,7 @@ impl DynamicStore {
         Ok(DynamicStoreRunLoopSource { raw })
     }
 
+    /// Wraps `SCDynamicStoreSetDispatchQueueGlobal`.
     pub fn set_dispatch_queue_global(&self) -> Result<()> {
         let ok = unsafe {
             ffi::dynamic_store::sc_dynamic_store_set_dispatch_queue_global(self.raw.as_ptr())
@@ -306,41 +325,48 @@ impl DynamicStore {
         bridge::bool_result("sc_dynamic_store_set_dispatch_queue_global", ok)
     }
 
+    /// Wraps `SCDynamicStoreClearDispatchQueue`.
     pub fn clear_dispatch_queue(&self) -> Result<()> {
         let ok =
             unsafe { ffi::dynamic_store::sc_dynamic_store_clear_dispatch_queue(self.raw.as_ptr()) };
         bridge::bool_result("sc_dynamic_store_clear_dispatch_queue", ok)
     }
 
+    /// Wraps `SCDynamicStoreCopyNotifiedKeys`.
     pub fn copy_notified_keys(&self) -> Vec<String> {
         let raw =
             unsafe { ffi::dynamic_store::sc_dynamic_store_copy_notified_keys(self.raw.as_ptr()) };
         bridge::take_string_array(raw)
     }
 
+    /// Wraps `SCDynamicStoreCopyComputerName`.
     pub fn computer_name(&self) -> Option<String> {
         bridge::take_optional_string(unsafe {
             ffi::dynamic_store::sc_dynamic_store_copy_computer_name(self.raw.as_ptr())
         })
     }
 
+    /// Wraps `SCDynamicStoreCopyLocalHostName`.
     pub fn local_host_name(&self) -> Option<String> {
         bridge::take_optional_string(unsafe {
             ffi::dynamic_store::sc_dynamic_store_copy_local_host_name(self.raw.as_ptr())
         })
     }
 
+    /// Wraps `SCDynamicStoreCopyLocation`.
     pub fn location(&self) -> Option<String> {
         bridge::take_optional_string(unsafe {
             ffi::dynamic_store::sc_dynamic_store_copy_location(self.raw.as_ptr())
         })
     }
 
+    /// Wraps `SCDynamicStoreCopyProxies`.
     pub fn proxies(&self) -> Option<PropertyList> {
         let raw = unsafe { ffi::dynamic_store::sc_dynamic_store_copy_proxies(self.raw.as_ptr()) };
         unsafe { bridge::OwnedHandle::from_raw(raw) }.map(PropertyList::from_owned_handle)
     }
 
+    /// Wraps `SCDynamicStoreCopyDHCPInfo`.
     pub fn dhcp_info(&self, service_id: Option<&str>) -> Result<Option<PropertyList>> {
         let service_id = bridge::optional_cstring(service_id, "sc_dynamic_store_copy_dhcp_info")?;
         let raw = unsafe {
@@ -354,6 +380,7 @@ impl DynamicStore {
         Ok(unsafe { bridge::OwnedHandle::from_raw(raw) }.map(PropertyList::from_owned_handle))
     }
 
+    /// Wraps `SCDHCPInfoCopyOptionData`.
     pub fn dhcp_option_data(info: &PropertyList, code: u8) -> Option<PropertyList> {
         unsafe {
             bridge::OwnedHandle::from_raw(ffi::dynamic_store::sc_dhcp_info_copy_option_data(
@@ -364,6 +391,7 @@ impl DynamicStore {
         .map(PropertyList::from_owned_handle)
     }
 
+    /// Wraps `SCDHCPInfoCopyLeaseStartTime`.
     pub fn dhcp_lease_start_time(info: &PropertyList) -> Option<PropertyList> {
         unsafe {
             bridge::OwnedHandle::from_raw(ffi::dynamic_store::sc_dhcp_info_copy_lease_start_time(
@@ -373,6 +401,7 @@ impl DynamicStore {
         .map(PropertyList::from_owned_handle)
     }
 
+    /// Wraps `SCDHCPInfoCopyLeaseExpirationTime`.
     pub fn dhcp_lease_expiration_time(info: &PropertyList) -> Option<PropertyList> {
         unsafe {
             bridge::OwnedHandle::from_raw(
@@ -382,6 +411,7 @@ impl DynamicStore {
         .map(PropertyList::from_owned_handle)
     }
 
+    /// Wraps `SCDynamicStoreKeyCreate`.
     pub fn key_create<A: AsRef<str>>(format: &str, arguments: &[A]) -> Result<String> {
         let format = bridge::cstring(format, "sc_dynamic_store_key_create")?;
         let arguments = CStringArray::new(arguments, "sc_dynamic_store_key_create")?;
@@ -400,6 +430,7 @@ impl DynamicStore {
         })
     }
 
+    /// Wraps `SCDynamicStoreKeyCreateNetworkGlobalEntity`.
     pub fn network_global_entity_key(domain: &str, entity: &str) -> Result<String> {
         let domain = bridge::cstring(domain, "sc_dynamic_store_key_create_network_global_entity")?;
         let entity = bridge::cstring(entity, "sc_dynamic_store_key_create_network_global_entity")?;
@@ -417,6 +448,7 @@ impl DynamicStore {
         })
     }
 
+    /// Wraps `SCDynamicStoreKeyCreateNetworkInterface`.
     pub fn network_interface_key(domain: &str) -> Result<String> {
         let domain = bridge::cstring(domain, "sc_dynamic_store_key_create_network_interface")?;
         bridge::take_optional_string(unsafe {
@@ -430,6 +462,7 @@ impl DynamicStore {
         })
     }
 
+    /// Wraps `SCDynamicStoreKeyCreateNetworkInterfaceEntity`.
     pub fn network_interface_entity_key(
         domain: &str,
         interface_name: &str,
@@ -464,6 +497,7 @@ impl DynamicStore {
         })
     }
 
+    /// Wraps `SCDynamicStoreKeyCreateNetworkServiceEntity`.
     pub fn network_service_entity_key(
         domain: &str,
         service_id: &str,
@@ -493,6 +527,7 @@ impl DynamicStore {
         })
     }
 
+    /// Wraps `SCDynamicStoreKeyCreateComputerName`.
     pub fn computer_name_key() -> Result<String> {
         bridge::take_optional_string(unsafe {
             ffi::dynamic_store::sc_dynamic_store_key_create_computer_name()
@@ -505,6 +540,7 @@ impl DynamicStore {
         })
     }
 
+    /// Wraps `SCDynamicStoreKeyCreateConsoleUser`.
     pub fn console_user_key() -> Result<String> {
         bridge::take_optional_string(unsafe {
             ffi::dynamic_store::sc_dynamic_store_key_create_console_user()
@@ -517,6 +553,7 @@ impl DynamicStore {
         })
     }
 
+    /// Wraps `SCDynamicStoreKeyCreateHostNames`.
     pub fn host_names_key() -> Result<String> {
         bridge::take_optional_string(unsafe {
             ffi::dynamic_store::sc_dynamic_store_key_create_host_names()
@@ -529,6 +566,7 @@ impl DynamicStore {
         })
     }
 
+    /// Wraps `SCDynamicStoreKeyCreateLocation`.
     pub fn location_key() -> Result<String> {
         bridge::take_optional_string(unsafe {
             ffi::dynamic_store::sc_dynamic_store_key_create_location()
@@ -541,6 +579,7 @@ impl DynamicStore {
         })
     }
 
+    /// Wraps `SCDynamicStoreKeyCreateProxies`.
     pub fn proxies_key() -> Result<String> {
         bridge::take_optional_string(unsafe {
             ffi::dynamic_store::sc_dynamic_store_key_create_proxies()
@@ -555,6 +594,7 @@ impl DynamicStore {
 }
 
 impl DynamicStoreRunLoopSource {
+    /// Wraps `SCRunLoopSourceScheduleCurrentDefaultMode`.
     pub fn schedule_current_default_mode(&self) -> Result<()> {
         let ok = unsafe {
             ffi::dynamic_store::sc_run_loop_source_schedule_current_default_mode(self.raw.as_ptr())
@@ -562,6 +602,7 @@ impl DynamicStoreRunLoopSource {
         bridge::bool_result("sc_run_loop_source_schedule_current_default_mode", ok)
     }
 
+    /// Wraps `SCRunLoopSourceUnscheduleCurrentDefaultMode`.
     pub fn unschedule_current_default_mode(&self) -> Result<()> {
         let ok = unsafe {
             ffi::dynamic_store::sc_run_loop_source_unschedule_current_default_mode(

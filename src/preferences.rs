@@ -23,20 +23,26 @@ unsafe extern "C" fn preferences_callback(notification_type: u32, info: *mut c_v
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+/// Wraps `SCPreferencesNotification`.
 pub struct PreferencesNotification(u32);
 
 impl PreferencesNotification {
+    /// Wraps `kSCPreferencesNotificationCommit`.
     pub const COMMIT: Self = Self(1 << 0);
+    /// Wraps `kSCPreferencesNotificationApply`.
     pub const APPLY: Self = Self(1 << 1);
 
+    /// Wraps conversion from raw `SCPreferencesNotification` values.
     pub const fn from_raw(raw: u32) -> Self {
         Self(raw)
     }
 
+    /// Wraps conversion to raw `SCPreferencesNotification` values.
     pub const fn raw_value(self) -> u32 {
         self.0
     }
 
+    /// Wraps membership checks on `SCPreferencesNotification` flags.
     pub const fn contains(self, other: Self) -> bool {
         self.0 & other.0 == other.0
     }
@@ -71,6 +77,7 @@ impl BitAndAssign for PreferencesNotification {
 }
 
 #[derive(Clone)]
+/// Wraps `SCPreferencesRef`.
 pub struct Preferences {
     raw: bridge::OwnedHandle,
     callback_state: Option<Arc<Mutex<CallbackState>>>,
@@ -83,14 +90,17 @@ impl std::fmt::Debug for Preferences {
 }
 
 impl Preferences {
+    /// Wraps `SCPreferencesGetTypeID`.
     pub fn type_id() -> u64 {
         unsafe { ffi::preferences::sc_preferences_get_type_id() }
     }
 
+    /// Wraps `SCPreferencesCreate`.
     pub fn new(name: &str, prefs_id: Option<&str>) -> Result<Self> {
         Self::create(name, prefs_id)
     }
 
+    /// Wraps `SCPreferencesCreateWithAuthorization`.
     pub fn new_with_authorization(name: &str, prefs_id: Option<&str>) -> Result<Self> {
         unsafe { Self::create_with_authorization(name, prefs_id, None) }
     }
@@ -108,6 +118,7 @@ impl Preferences {
         unsafe { Self::create_with_authorization(name, prefs_id, authorization) }
     }
 
+    /// Wraps `SCPreferencesCreate` with `SCPreferencesSetCallback`.
     pub fn new_with_callback<F>(name: &str, prefs_id: Option<&str>, callback: F) -> Result<Self>
     where
         F: FnMut(PreferencesNotification) + Send + 'static,
@@ -117,6 +128,7 @@ impl Preferences {
         Ok(preferences)
     }
 
+    /// Wraps `SCPreferencesCreateWithAuthorization` with `SCPreferencesSetCallback`.
     pub fn new_with_authorization_and_callback<F>(
         name: &str,
         prefs_id: Option<&str>,
@@ -192,6 +204,7 @@ impl Preferences {
         })
     }
 
+    /// Wraps a helper on `SCPreferencesRef`.
     pub fn set_callback<F>(&mut self, callback: F) -> Result<()>
     where
         F: FnMut(PreferencesNotification) + Send + 'static,
@@ -202,6 +215,7 @@ impl Preferences {
         self.set_callback_state(Some(state))
     }
 
+    /// Wraps a helper on `SCPreferencesRef`.
     pub fn clear_callback(&mut self) -> Result<()> {
         self.set_callback_state(None)
     }
@@ -223,6 +237,7 @@ impl Preferences {
         Ok(())
     }
 
+    /// Wraps `SCPreferencesScheduleWithRunLoopCurrent`.
     pub fn schedule_with_run_loop_current(&self) -> Result<()> {
         let ok = unsafe {
             ffi::preferences::sc_preferences_schedule_with_run_loop_current(self.raw.as_ptr())
@@ -230,6 +245,7 @@ impl Preferences {
         bridge::bool_result("sc_preferences_schedule_with_run_loop_current", ok)
     }
 
+    /// Wraps `SCPreferencesUnscheduleFromRunLoopCurrent`.
     pub fn unschedule_from_run_loop_current(&self) -> Result<()> {
         let ok = unsafe {
             ffi::preferences::sc_preferences_unschedule_from_run_loop_current(self.raw.as_ptr())
@@ -237,6 +253,7 @@ impl Preferences {
         bridge::bool_result("sc_preferences_unschedule_from_run_loop_current", ok)
     }
 
+    /// Wraps `SCPreferencesSetDispatchQueueGlobal`.
     pub fn set_dispatch_queue_global(&self) -> Result<()> {
         let ok = unsafe {
             ffi::preferences::sc_preferences_set_dispatch_queue_global(self.raw.as_ptr())
@@ -244,49 +261,58 @@ impl Preferences {
         bridge::bool_result("sc_preferences_set_dispatch_queue_global", ok)
     }
 
+    /// Wraps `SCPreferencesClearDispatchQueue`.
     pub fn clear_dispatch_queue(&self) -> Result<()> {
         let ok =
             unsafe { ffi::preferences::sc_preferences_clear_dispatch_queue(self.raw.as_ptr()) };
         bridge::bool_result("sc_preferences_clear_dispatch_queue", ok)
     }
 
+    /// Wraps `SCPreferencesLock`.
     pub fn lock(&self, wait: bool) -> Result<()> {
         let ok =
             unsafe { ffi::preferences::sc_preferences_lock(self.raw.as_ptr(), u8::from(wait)) };
         bridge::bool_result("sc_preferences_lock", ok)
     }
 
+    /// Wraps `SCPreferencesCommitChanges`.
     pub fn commit_changes(&self) -> Result<()> {
         let ok = unsafe { ffi::preferences::sc_preferences_commit_changes(self.raw.as_ptr()) };
         bridge::bool_result("sc_preferences_commit_changes", ok)
     }
 
+    /// Wraps `SCPreferencesApplyChanges`.
     pub fn apply_changes(&self) -> Result<()> {
         let ok = unsafe { ffi::preferences::sc_preferences_apply_changes(self.raw.as_ptr()) };
         bridge::bool_result("sc_preferences_apply_changes", ok)
     }
 
+    /// Wraps `SCPreferencesUnlock`.
     pub fn unlock(&self) -> Result<()> {
         let ok = unsafe { ffi::preferences::sc_preferences_unlock(self.raw.as_ptr()) };
         bridge::bool_result("sc_preferences_unlock", ok)
     }
 
+    /// Wraps `SCPreferencesSynchronize`.
     pub fn synchronize(&self) {
         unsafe { ffi::preferences::sc_preferences_synchronize(self.raw.as_ptr()) };
     }
 
+    /// Wraps `SCPreferencesCopySignature`.
     pub fn signature(&self) -> Option<String> {
         bridge::take_optional_string(unsafe {
             ffi::preferences::sc_preferences_copy_signature(self.raw.as_ptr())
         })
     }
 
+    /// Wraps `SCPreferencesCopyKeyList`.
     pub fn copy_key_list(&self) -> Vec<String> {
         bridge::take_string_array(unsafe {
             ffi::preferences::sc_preferences_copy_key_list(self.raw.as_ptr())
         })
     }
 
+    /// Wraps `SCPreferencesGetValue`.
     pub fn get_value(&self, key: &str) -> Result<Option<PropertyList>> {
         let key = bridge::cstring(key, "sc_preferences_get_value")?;
         let raw =
@@ -294,6 +320,7 @@ impl Preferences {
         Ok(unsafe { bridge::OwnedHandle::from_raw(raw) }.map(PropertyList::from_owned_handle))
     }
 
+    /// Wraps `SCPreferencesAddValue`.
     pub fn add_value(&self, key: &str, value: &PropertyList) -> Result<()> {
         let key = bridge::cstring(key, "sc_preferences_add_value")?;
         let ok = unsafe {
@@ -306,6 +333,7 @@ impl Preferences {
         bridge::bool_result("sc_preferences_add_value", ok)
     }
 
+    /// Wraps `SCPreferencesSetValue`.
     pub fn set_value(&self, key: &str, value: &PropertyList) -> Result<()> {
         let key = bridge::cstring(key, "sc_preferences_set_value")?;
         let ok = unsafe {
@@ -318,6 +346,7 @@ impl Preferences {
         bridge::bool_result("sc_preferences_set_value", ok)
     }
 
+    /// Wraps `SCPreferencesRemoveValue`.
     pub fn remove_value(&self, key: &str) -> Result<()> {
         let key = bridge::cstring(key, "sc_preferences_remove_value")?;
         let ok = unsafe {
@@ -326,6 +355,7 @@ impl Preferences {
         bridge::bool_result("sc_preferences_remove_value", ok)
     }
 
+    /// Wraps `SCPreferencesPathCreateUniqueChild`.
     pub fn path_create_unique_child(&self, prefix: &str) -> Result<Option<String>> {
         let prefix = bridge::cstring(prefix, "sc_preferences_path_create_unique_child")?;
         Ok(bridge::take_optional_string(unsafe {
@@ -336,6 +366,7 @@ impl Preferences {
         }))
     }
 
+    /// Wraps `SCPreferencesPathGetValue`.
     pub fn path_get_value(&self, path: &str) -> Result<Option<PropertyList>> {
         let path = bridge::cstring(path, "sc_preferences_path_get_value")?;
         let raw = unsafe {
@@ -344,6 +375,7 @@ impl Preferences {
         Ok(unsafe { bridge::OwnedHandle::from_raw(raw) }.map(PropertyList::from_owned_handle))
     }
 
+    /// Wraps `SCPreferencesPathGetLink`.
     pub fn path_get_link(&self, path: &str) -> Result<Option<String>> {
         let path = bridge::cstring(path, "sc_preferences_path_get_link")?;
         Ok(bridge::take_optional_string(unsafe {
@@ -351,6 +383,7 @@ impl Preferences {
         }))
     }
 
+    /// Wraps `SCPreferencesPathSetValue`.
     pub fn path_set_value(&self, path: &str, value: &PropertyList) -> Result<()> {
         let path = bridge::cstring(path, "sc_preferences_path_set_value")?;
         let ok = unsafe {
@@ -363,6 +396,7 @@ impl Preferences {
         bridge::bool_result("sc_preferences_path_set_value", ok)
     }
 
+    /// Wraps `SCPreferencesPathSetLink`.
     pub fn path_set_link(&self, path: &str, link: &str) -> Result<()> {
         let path = bridge::cstring(path, "sc_preferences_path_set_link")?;
         let link = bridge::cstring(link, "sc_preferences_path_set_link")?;
@@ -376,6 +410,7 @@ impl Preferences {
         bridge::bool_result("sc_preferences_path_set_link", ok)
     }
 
+    /// Wraps `SCPreferencesPathRemoveValue`.
     pub fn path_remove_value(&self, path: &str) -> Result<()> {
         let path = bridge::cstring(path, "sc_preferences_path_remove_value")?;
         let ok = unsafe {
@@ -384,6 +419,7 @@ impl Preferences {
         bridge::bool_result("sc_preferences_path_remove_value", ok)
     }
 
+    /// Wraps `SCPreferencesSetComputerName`.
     pub fn set_computer_name(&self, name: Option<&str>) -> Result<()> {
         let name = bridge::optional_cstring(name, "sc_preferences_set_computer_name")?;
         let ok = unsafe {
@@ -396,6 +432,7 @@ impl Preferences {
         bridge::bool_result("sc_preferences_set_computer_name", ok)
     }
 
+    /// Wraps `SCPreferencesSetLocalHostName`.
     pub fn set_local_host_name(&self, name: Option<&str>) -> Result<()> {
         let name = bridge::optional_cstring(name, "sc_preferences_set_local_host_name")?;
         let ok = unsafe {
@@ -408,6 +445,7 @@ impl Preferences {
         bridge::bool_result("sc_preferences_set_local_host_name", ok)
     }
 
+    /// Wraps a helper on `SCPreferencesRef`.
     pub fn network_services(&self) -> Vec<NetworkService> {
         NetworkService::copy_all(self)
     }

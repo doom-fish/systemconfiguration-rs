@@ -4,21 +4,25 @@ use crate::{
 };
 
 #[derive(Clone, Debug)]
+/// Wraps `SCNetworkServiceRef`.
 pub struct NetworkService {
     raw: bridge::OwnedHandle,
 }
 
 impl NetworkService {
+    /// Wraps `SCNetworkServiceGetTypeID`.
     pub fn type_id() -> u64 {
         unsafe { ffi::network_services::sc_network_service_get_type_id() }
     }
 
+    /// Wraps `SCNetworkServiceCopyAll`.
     pub fn copy_all(preferences: &Preferences) -> Vec<Self> {
         let raw =
             unsafe { ffi::network_services::sc_network_service_copy_all(preferences.as_ptr()) };
         bridge::take_handle_array(raw, Self::from_owned_handle)
     }
 
+    /// Wraps `SCNetworkServiceCreate`.
     pub fn create(preferences: &Preferences, interface: &NetworkInterface) -> Result<Self> {
         let raw = unsafe {
             ffi::network_services::sc_network_service_create(
@@ -30,6 +34,7 @@ impl NetworkService {
         Ok(Self { raw })
     }
 
+    /// Wraps `SCNetworkServiceCopy`.
     pub fn copy(preferences: &Preferences, service_id: &str) -> Result<Option<Self>> {
         let service_id = bridge::cstring(service_id, "sc_network_service_copy")?;
         let raw = unsafe {
@@ -41,12 +46,14 @@ impl NetworkService {
         Ok(unsafe { bridge::OwnedHandle::from_raw(raw) }.map(Self::from_owned_handle))
     }
 
+    /// Wraps `SCNetworkServiceCopyProtocols`.
     pub fn copy_protocols(&self) -> Vec<NetworkProtocol> {
         let raw =
             unsafe { ffi::network_services::sc_network_service_copy_protocols(self.raw.as_ptr()) };
         bridge::take_handle_array(raw, NetworkProtocol::from_owned_handle)
     }
 
+    /// Wraps `SCNetworkServiceCopyProtocol`.
     pub fn copy_protocol(&self, protocol_type: &str) -> Result<Option<NetworkProtocol>> {
         let protocol_type = bridge::cstring(protocol_type, "sc_network_service_copy_protocol")?;
         let raw = unsafe {
@@ -58,6 +65,7 @@ impl NetworkService {
         Ok(unsafe { bridge::OwnedHandle::from_raw(raw) }.map(NetworkProtocol::from_owned_handle))
     }
 
+    /// Wraps `SCNetworkServiceAddProtocolType`.
     pub fn add_protocol_type(&self, protocol_type: &str) -> Result<()> {
         let protocol_type = bridge::cstring(protocol_type, "sc_network_service_add_protocol_type")?;
         let ok = unsafe {
@@ -69,6 +77,7 @@ impl NetworkService {
         bridge::bool_result("sc_network_service_add_protocol_type", ok)
     }
 
+    /// Wraps `SCNetworkServiceEstablishDefaultConfiguration`.
     pub fn establish_default_configuration(&self) -> Result<()> {
         let ok = unsafe {
             ffi::network_services::sc_network_service_establish_default_configuration(
@@ -78,10 +87,12 @@ impl NetworkService {
         bridge::bool_result("sc_network_service_establish_default_configuration", ok)
     }
 
+    /// Wraps `SCNetworkServiceGetEnabled`.
     pub fn is_enabled(&self) -> bool {
         unsafe { ffi::network_services::sc_network_service_get_enabled(self.raw.as_ptr()) != 0 }
     }
 
+    /// Wraps `SCNetworkServiceCopyInterface`.
     pub fn interface(&self) -> Option<NetworkInterface> {
         unsafe {
             bridge::OwnedHandle::from_raw(ffi::network_services::sc_network_service_copy_interface(
@@ -91,23 +102,27 @@ impl NetworkService {
         .map(NetworkInterface::from_owned_handle)
     }
 
+    /// Wraps `SCNetworkServiceCopyName`.
     pub fn name(&self) -> Result<Option<String>> {
         Ok(bridge::take_optional_string(unsafe {
             ffi::network_services::sc_network_service_copy_name(self.raw.as_ptr())
         }))
     }
 
+    /// Wraps `SCNetworkServiceCopyServiceID`.
     pub fn service_id(&self) -> Result<Option<String>> {
         Ok(bridge::take_optional_string(unsafe {
             ffi::network_services::sc_network_service_copy_service_id(self.raw.as_ptr())
         }))
     }
 
+    /// Wraps `SCNetworkServiceRemove`.
     pub fn remove(&self) -> Result<()> {
         let ok = unsafe { ffi::network_services::sc_network_service_remove(self.raw.as_ptr()) };
         bridge::bool_result("sc_network_service_remove", ok)
     }
 
+    /// Wraps `SCNetworkServiceRemoveProtocolType`.
     pub fn remove_protocol_type(&self, protocol_type: &str) -> Result<()> {
         let protocol_type =
             bridge::cstring(protocol_type, "sc_network_service_remove_protocol_type")?;
@@ -120,6 +135,7 @@ impl NetworkService {
         bridge::bool_result("sc_network_service_remove_protocol_type", ok)
     }
 
+    /// Wraps `SCNetworkServiceSetEnabled`.
     pub fn set_enabled(&self, enabled: bool) -> Result<()> {
         let ok = unsafe {
             ffi::network_services::sc_network_service_set_enabled(
@@ -130,6 +146,7 @@ impl NetworkService {
         bridge::bool_result("sc_network_service_set_enabled", ok)
     }
 
+    /// Wraps `SCNetworkServiceSetName`.
     pub fn set_name(&self, name: Option<&str>) -> Result<()> {
         let name = bridge::optional_cstring(name, "sc_network_service_set_name")?;
         let ok = unsafe {

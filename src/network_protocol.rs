@@ -1,15 +1,18 @@
 use crate::{bridge, error::Result, ffi, PropertyList};
 
 #[derive(Clone, Debug)]
+/// Wraps `SCNetworkProtocolRef`.
 pub struct NetworkProtocol {
     raw: bridge::OwnedHandle,
 }
 
 impl NetworkProtocol {
+    /// Wraps `SCNetworkProtocolGetTypeID`.
     pub fn type_id() -> u64 {
         unsafe { ffi::network_protocol::sc_network_protocol_get_type_id() }
     }
 
+    /// Wraps `SCNetworkProtocolCopyConfiguration`.
     pub fn configuration(&self) -> Option<PropertyList> {
         unsafe {
             bridge::OwnedHandle::from_raw(
@@ -19,16 +22,19 @@ impl NetworkProtocol {
         .map(PropertyList::from_owned_handle)
     }
 
+    /// Wraps `SCNetworkProtocolGetEnabled`.
     pub fn is_enabled(&self) -> bool {
         unsafe { ffi::network_protocol::sc_network_protocol_get_enabled(self.raw.as_ptr()) != 0 }
     }
 
+    /// Wraps `SCNetworkProtocolCopyProtocolType`.
     pub fn protocol_type(&self) -> Option<String> {
         bridge::take_optional_string(unsafe {
             ffi::network_protocol::sc_network_protocol_copy_protocol_type(self.raw.as_ptr())
         })
     }
 
+    /// Wraps `SCNetworkProtocolSetConfiguration`.
     pub fn set_configuration(&self, value: &PropertyList) -> Result<()> {
         let ok = unsafe {
             ffi::network_protocol::sc_network_protocol_set_configuration(
@@ -39,6 +45,7 @@ impl NetworkProtocol {
         bridge::bool_result("sc_network_protocol_set_configuration", ok)
     }
 
+    /// Wraps `SCNetworkProtocolSetEnabled`.
     pub fn set_enabled(&self, enabled: bool) -> Result<()> {
         let ok = unsafe {
             ffi::network_protocol::sc_network_protocol_set_enabled(

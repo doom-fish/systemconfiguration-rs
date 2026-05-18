@@ -119,7 +119,7 @@ dependencies = [
 
 [[package]]
 name = "systemconfiguration-rs"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "apple-cf",
  "doom-fish-utils 0.2.0",

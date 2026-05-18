@@ -7,45 +7,59 @@ use std::{
 use crate::{bridge, error::Result, ffi, SystemConfigurationError};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub struct ReachabilityFlags(pub u32);
+/// Wraps `SCNetworkReachabilityFlags`.
+pub struct ReachabilityFlags(
+    /// Wraps the raw `SCNetworkReachabilityFlags` bitfield.
+    pub u32,
+);
 
 impl ReachabilityFlags {
+    /// Wraps a helper on `SCNetworkReachabilityFlags`.
     pub fn bits(self) -> u32 {
         self.0
     }
 
+    /// Wraps a helper on `SCNetworkReachabilityFlags`.
     pub fn is_transient_connection(self) -> bool {
         self.0 & (1 << 0) != 0
     }
 
+    /// Wraps a helper on `SCNetworkReachabilityFlags`.
     pub fn is_reachable(self) -> bool {
         self.0 & (1 << 1) != 0
     }
 
+    /// Wraps a helper on `SCNetworkReachabilityFlags`.
     pub fn needs_connection(self) -> bool {
         self.0 & (1 << 2) != 0
     }
 
+    /// Wraps a helper on `SCNetworkReachabilityFlags`.
     pub fn is_connection_on_traffic(self) -> bool {
         self.0 & (1 << 3) != 0
     }
 
+    /// Wraps a helper on `SCNetworkReachabilityFlags`.
     pub fn needs_intervention(self) -> bool {
         self.0 & (1 << 4) != 0
     }
 
+    /// Wraps a helper on `SCNetworkReachabilityFlags`.
     pub fn is_connection_on_demand(self) -> bool {
         self.0 & (1 << 5) != 0
     }
 
+    /// Wraps a helper on `SCNetworkReachabilityFlags`.
     pub fn is_local_address(self) -> bool {
         self.0 & (1 << 16) != 0
     }
 
+    /// Wraps a helper on `SCNetworkReachabilityFlags`.
     pub fn is_direct(self) -> bool {
         self.0 & (1 << 17) != 0
     }
 
+    /// Wraps a helper on `SCNetworkReachabilityFlags`.
     pub fn is_wwan(self) -> bool {
         self.0 & (1 << 18) != 0
     }
@@ -126,6 +140,7 @@ unsafe extern "C" fn reachability_callback_send(flags: u32, info: *mut c_void) {
     }
 }
 
+/// Wraps `SCNetworkReachabilityRef`.
 pub struct Reachability {
     raw: bridge::OwnedHandle,
     callback: Option<RegisteredCallback>,
@@ -133,13 +148,16 @@ pub struct Reachability {
     dispatch_queue_active: bool,
 }
 
+/// Alias for the `SCNetworkReachabilityRef` wrapper.
 pub type NetworkReachability = Reachability;
 
 impl Reachability {
+    /// Wraps `SCReachabilityGetTypeID`.
     pub fn type_id() -> u64 {
         unsafe { ffi::network_reachability::sc_reachability_get_type_id() }
     }
 
+    /// Wraps `SCReachabilityCreateWithName`.
     pub fn with_name(name: &str) -> Result<Self> {
         let name = bridge::cstring(name, "sc_reachability_create_with_name")?;
         let raw =
@@ -153,6 +171,7 @@ impl Reachability {
         })
     }
 
+    /// Wraps `SCReachabilityCreateWithAddress`.
     pub fn with_address(address: SocketAddr) -> Result<Self> {
         let storage = socket_addr_to_bytes(address);
         let raw = unsafe {
@@ -170,6 +189,7 @@ impl Reachability {
         })
     }
 
+    /// Wraps `SCReachabilityCreateWithAddressPair`.
     pub fn with_address_pair(
         local_address: Option<SocketAddr>,
         remote_address: Option<SocketAddr>,
@@ -197,6 +217,7 @@ impl Reachability {
         })
     }
 
+    /// Wraps `SCReachabilityGetFlags`.
     pub fn flags(&self) -> Result<ReachabilityFlags> {
         let mut flags = 0_u32;
         let ok = unsafe {
@@ -206,6 +227,7 @@ impl Reachability {
         Ok(ReachabilityFlags(flags))
     }
 
+    /// Wraps a helper on `SCNetworkReachabilityRef`.
     pub fn set_callback<F>(&mut self, callback: F) -> Result<()>
     where
         F: FnMut(ReachabilityFlags) + 'static,
@@ -227,6 +249,7 @@ impl Reachability {
         )
     }
 
+    /// Wraps a helper on `SCNetworkReachabilityRef`.
     pub fn set_callback_send<F>(&mut self, callback: F) -> Result<()>
     where
         F: FnMut(ReachabilityFlags) + Send + 'static,
@@ -241,6 +264,7 @@ impl Reachability {
         )
     }
 
+    /// Wraps a helper on `SCNetworkReachabilityRef`.
     pub fn clear_callback(&mut self) -> Result<()> {
         if self.dispatch_queue_active {
             self.clear_dispatch_queue()?;
@@ -248,6 +272,7 @@ impl Reachability {
         self.set_registered_callback(None, std::ptr::null_mut(), None)
     }
 
+    /// Wraps `SCReachabilityScheduleWithRunLoopCurrent`.
     pub fn schedule_with_run_loop_current(&mut self) -> Result<()> {
         let ok = unsafe {
             ffi::network_reachability::sc_reachability_schedule_with_run_loop_current(
@@ -259,6 +284,7 @@ impl Reachability {
         Ok(())
     }
 
+    /// Wraps `SCReachabilityUnscheduleFromRunLoopCurrent`.
     pub fn unschedule_from_run_loop_current(&mut self) -> Result<()> {
         let ok = unsafe {
             ffi::network_reachability::sc_reachability_unschedule_from_run_loop_current(
@@ -270,6 +296,7 @@ impl Reachability {
         Ok(())
     }
 
+    /// Wraps `SCReachabilitySetDispatchQueueGlobal`.
     pub fn set_dispatch_queue_global(&mut self) -> Result<()> {
         if matches!(self.callback, Some(RegisteredCallback::Local { .. })) {
             return Err(SystemConfigurationError::null(
@@ -286,6 +313,7 @@ impl Reachability {
         Ok(())
     }
 
+    /// Wraps `SCReachabilityClearDispatchQueue`.
     pub fn clear_dispatch_queue(&mut self) -> Result<()> {
         let ok = unsafe {
             ffi::network_reachability::sc_reachability_clear_dispatch_queue(self.raw.as_ptr())
