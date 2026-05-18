@@ -1,6 +1,6 @@
 [package]
 name = "systemconfiguration-rs"
-version = "0.5.0"
+version = "0.5.1"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 homepage = "https://github.com/doom-fish/systemconfiguration-rs"
@@ -43,7 +43,7 @@ raw-ffi = []
 async = ["dep:doom-fish-utils"]
 
 [dependencies]
-apple-cf = { version = ">=0.8, <0.9", default-features = false, features = ["cg"] }
+apple-cf = { version = ">=0.8, <0.10", default-features = false, features = ["cg"] }
 libc = "0.2"
 doom-fish-utils = { path = "../doom-fish-utils", version = ">=0.1, <0.3", optional = true }
 serde = { version = "1", features = ["derive"] }
