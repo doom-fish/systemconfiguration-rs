@@ -3,11 +3,9 @@
 use std::ffi::{c_char, c_void};
 
 pub use apple_cf::raw::{
-    CFAllocatorRef, CFArrayRef, CFDataRef, CFDateRef, CFDictionaryRef, CFPropertyListRef,
-    CFRunLoopRef, CFStringRef,
+    Boolean, CFAllocatorRef, CFArrayRef, CFDataRef, CFDateRef, CFDictionaryRef,
+    CFPropertyListRef, CFRunLoopRef, CFStringRef,
 };
-
-pub type Boolean = u8;
 pub type SCDynamicStoreRef = *const c_void;
 pub type SCNetworkInterfaceRef = *const c_void;
 pub type SCNetworkProtocolRef = *const c_void;

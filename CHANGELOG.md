@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.2] - 2026-05-18
+
+### Changed
+
+- Re-exported `Boolean` from `apple_cf::raw` in `raw_ffi`, removing the remaining crate-local primitive alias.
+
 ## [0.5.1] - 2026-05-18
 
 - Widen apple-cf version bound to `<0.10` so 0.9.x resolves.
