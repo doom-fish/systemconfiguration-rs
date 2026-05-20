@@ -1,3 +1,5 @@
+#![cfg(feature = "async")]
+
 use std::ffi::{c_char, c_void};
 
 pub(crate) type AsyncEventCallback =

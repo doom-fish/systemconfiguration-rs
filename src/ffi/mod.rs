@@ -1,3 +1,4 @@
+#[cfg(feature = "async")]
 pub(crate) mod async_api;
 pub(crate) mod captive_network;
 pub(crate) mod console_user;
