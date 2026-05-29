@@ -15,7 +15,6 @@ let package = Package(
     targets: [
         .target(
             name: "SystemConfigurationBridge",
-            path: "Sources/SystemConfigurationBridge",
-            publicHeadersPath: "include")
+            path: "Sources/SystemConfigurationBridge")
     ]
 )
