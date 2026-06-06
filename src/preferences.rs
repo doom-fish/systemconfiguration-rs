@@ -1,6 +1,7 @@
 use std::{
     ffi::c_void,
     ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign},
+    panic::AssertUnwindSafe,
     ptr::NonNull,
     sync::{Arc, Mutex},
 };
@@ -18,7 +19,10 @@ unsafe extern "C" fn preferences_callback(notification_type: u32, info: *mut c_v
 
     let mutex = unsafe { &*info.cast::<Mutex<CallbackState>>() };
     if let Ok(mut state) = mutex.lock() {
-        (state.callback)(PreferencesNotification::from_raw(notification_type));
+        // Catch panics: unwinding across the Swift/C FFI boundary is UB.
+        let _ = std::panic::catch_unwind(AssertUnwindSafe(|| {
+            (state.callback)(PreferencesNotification::from_raw(notification_type));
+        }));
     }
 }
 

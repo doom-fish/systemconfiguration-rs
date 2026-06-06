@@ -1,5 +1,6 @@
 use std::{
     ffi::c_void,
+    panic::AssertUnwindSafe,
     sync::{Arc, Mutex},
 };
 
@@ -150,7 +151,10 @@ unsafe extern "C" fn network_connection_callback(status: i32, info: *mut c_void)
 
     let mutex = &*info.cast::<Mutex<CallbackState>>();
     if let Ok(mut state) = mutex.lock() {
-        (state.callback)(NetworkConnectionStatus::from_raw(status));
+        // Catch panics: unwinding across the Swift/C FFI boundary is UB.
+        let _ = std::panic::catch_unwind(AssertUnwindSafe(|| {
+            (state.callback)(NetworkConnectionStatus::from_raw(status));
+        }));
     }
 }
 

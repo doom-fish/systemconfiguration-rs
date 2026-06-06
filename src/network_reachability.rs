@@ -1,6 +1,7 @@
 use std::{
     ffi::c_void,
     net::SocketAddr,
+    panic::AssertUnwindSafe,
     sync::{Arc, Mutex},
 };
 
@@ -126,7 +127,10 @@ unsafe extern "C" fn reachability_callback_local(flags: u32, info: *mut c_void) 
     }
 
     let state = unsafe { &mut *info.cast::<LocalCallbackState>() };
-    (state.callback)(ReachabilityFlags(flags));
+    // Catch panics: unwinding across the Swift/C FFI boundary is UB.
+    let _ = std::panic::catch_unwind(AssertUnwindSafe(|| {
+        (state.callback)(ReachabilityFlags(flags));
+    }));
 }
 
 unsafe extern "C" fn reachability_callback_send(flags: u32, info: *mut c_void) {
@@ -136,7 +140,10 @@ unsafe extern "C" fn reachability_callback_send(flags: u32, info: *mut c_void) {
 
     let mutex = unsafe { &*info.cast::<Mutex<SendCallbackState>>() };
     if let Ok(mut state) = mutex.lock() {
-        (state.callback)(ReachabilityFlags(flags));
+        // Catch panics: unwinding across the Swift/C FFI boundary is UB.
+        let _ = std::panic::catch_unwind(AssertUnwindSafe(|| {
+            (state.callback)(ReachabilityFlags(flags));
+        }));
     }
 }
 
