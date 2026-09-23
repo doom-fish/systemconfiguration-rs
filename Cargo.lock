@@ -4,11 +4,9 @@ version = 3
 
 [[package]]
 name = "apple-cf"
-version = "0.9.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dfd76633ef263bf3a209b49c71432295069d5468183af4ceee60c37d6b20c4c8"
+version = "0.11.0"
 dependencies = [
- "doom-fish-utils 0.3.1",
+ "doom-fish-utils",
 ]
 
 [[package]]
@@ -28,17 +26,7 @@ checksum = "d0a5c400df2834b80a4c3327b3aad3a4c4cd4de0629063962b03235697506a28"
 
 [[package]]
 name = "doom-fish-utils"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a7c39288eb169ed89758400e0efe19b24b4000c4fbeccddec62141fa68deb0a6"
-dependencies = [
- "crossbeam-queue",
- "futures-util",
-]
-
-[[package]]
-name = "doom-fish-utils"
-version = "0.3.3"
+version = "0.4.1"
 dependencies = [
  "crossbeam-queue",
  "futures-util",
@@ -174,7 +162,7 @@ name = "systemconfiguration-rs"
 version = "0.5.6"
 dependencies = [
  "apple-cf",
- "doom-fish-utils 0.3.3",
+ "doom-fish-utils",
  "libc",
  "pollster",
  "serde",
