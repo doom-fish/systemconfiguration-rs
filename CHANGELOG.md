@@ -1,5 +1,78 @@
 # Changelog
 
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.6.0] - Unreleased
+
+### Security
+
+- `DynamicStore`, `Preferences` and `NetworkConnection` handed their callback
+  state to SystemConfiguration without retain/release, and dropping the last
+  handle neither unscheduled the object nor cleared its callback. A scheduled
+  run-loop source or dispatch queue keeps the SystemConfiguration object alive,
+  so it went on calling into freed memory (a use-after-free from safe code).
+  SystemConfiguration now holds a reference to each callback for as long as it
+  can call it, and dropping the last handle unschedules the object from every
+  run loop and mode, clears its dispatch queue and callback, and invalidates the
+  store's run-loop sources.
+- `Reachability` callbacks registered with `set_callback_send` on a dispatch
+  queue, and the async `ReachabilityStream` and `PreferencesNotificationStream`,
+  could free their callback state while a callout was still running, because
+  SystemConfiguration runs the callout after releasing its own lock.
+
+### Fixed
+
+- Replacing a `Preferences` callback while it runs on a dispatch queue no longer
+  frees the running closure.
+- Dropping one clone of a `DynamicStore`, `Preferences` or `NetworkConnection`
+  no longer frees the callback the other clones still use.
+- A `DynamicStore` with a run-loop source that was never scheduled is freed
+  instead of leaking together with its configd session.
+- Scheduling is no longer limited to the current thread's run loop in the
+  default mode or a queue private to the crate.
+
+### Changed
+
+- **Breaking:** `Preferences::lock` returns a `PreferencesLock` that unlocks
+  when dropped; `PreferencesLock::unlock` reports the result.
+- **Breaking:** `Reachability::set_callback` (closures that are not `Send`)
+  fails while the reachability is scheduled on another thread's run loop or a
+  dispatch queue, and `schedule_with_run_loop` refuses another thread's run loop
+  while such a callback is set.
+- `Preferences::set_callback` and `clear_callback` take `&self`.
+- Clones of `DynamicStore`, `Preferences` and `NetworkConnection` share one
+  registration, which lives until the last clone is dropped.
+- A callback that is not running when its handle is dropped is dropped at once,
+  even when SystemConfiguration keeps its own object alive (it never frees an
+  `SCNetworkConnection` that has a callback).
+- `doom-fish-utils` is a regular dependency; the `async` feature only enables
+  the stream module. `apple-cf` now enables its `dispatch` feature.
+- `rust-version` is 1.82 (was 1.76). Requires `apple-cf >=0.11, <0.12` and
+  `doom-fish-utils >=0.4.1, <0.5`.
+
+### Added
+
+- `RunLoopMode` (`Default`, `Common`, `Named`) and scheduling on any `CFRunLoop`:
+  `DynamicStoreRunLoopSource::{schedule, unschedule, is_valid}`,
+  `Preferences::{schedule_with_run_loop, unschedule_from_run_loop}`,
+  `NetworkConnection::{schedule_with_run_loop, unschedule_from_run_loop}` and
+  `Reachability::{schedule_with_run_loop, unschedule_from_run_loop}`.
+- `set_dispatch_queue(&DispatchQueue)` on `DynamicStore`, `Preferences`,
+  `NetworkConnection` and `Reachability`.
+- Re-exports of `CFRunLoop`, `DispatchQueue` and `DispatchQoS` from `apple-cf`.
+
+### Removed
+
+- `Preferences::unlock`; use the `PreferencesLock` guard.
+
+## [0.5.6] - 2026-06-06
+
+- User callbacks for reachability, preferences and network connections are
+  wrapped in panic guards, and the unused Swift bridge C header is gone.
+
 ## [0.5.5] - 2026-05-20
 
 - Clippy hygiene sweep: cleared all `-D warnings` lints across the crate. No public API change.
