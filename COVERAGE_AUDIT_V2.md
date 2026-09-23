@@ -6,6 +6,10 @@ GAPS: 0
 EXEMPT: 13
 COVERAGE_PCT: 98
 
+> Caveat (0.6.0): generated against `MacOSX26.2.sdk` and not regenerated. Rows
+> marked `raw_ffi.rs` are unchecked C declarations behind the `raw-ffi` feature,
+> not safe coverage, even where a safe wrapper also exists.
+
 Audit derived from exhaustive symbol enumeration across all SystemConfiguration framework headers
 (SCDynamicStore, SCNetworkConfiguration, SCNetworkReachability, SCPreferences, SCBondInterface, SCVLANInterface, CaptiveNetwork, etc.).
 Verified coverage confirmed by cross-reference with current safe wrappers, bridge thunks/raw FFI, and direct compile-time constants in `schema_definitions`.

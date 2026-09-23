@@ -6,6 +6,12 @@ GAPS: 0
 EXEMPT: 36
 COVERAGE_PCT: 100.00%
 
+> Caveat (0.6.0): these numbers were generated against `MacOSX26.2.sdk` and were
+> not regenerated for the installed 26.5 SDK. A symbol counts as VERIFIED when a
+> safe wrapper or a `raw-ffi` declaration exists; `raw-ffi` declarations are
+> unchecked C bindings, not safe coverage, and VERIFIED does not mean the
+> wrapper behaves correctly.
+
 This audit parsed the public `SystemConfiguration.framework` headers in `MacOSX26.2.sdk`, filtered out macOS-unavailable declarations, treated macOS-deprecated declarations as EXEMPT, and counted symbols as covered when they are reachable through the safe Swift bridge or the optional `raw-ffi` feature.
 
 All non-exempt public macOS symbols in the audited headers are now surfaced. The final 259 gaps were closed by expanding `Schema::catalog()` to the full `SCSchemaDefinitions.h` catalog and adding the missing `DynamicStore`, `Preferences`, `NetworkConnection`, `BondInterface`, `VlanInterface`, and `SystemConfiguration` helpers.

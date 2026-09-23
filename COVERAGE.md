@@ -21,7 +21,12 @@ Legend:
   macOS or otherwise unsuitable for this crate
 
 Current safe-wrapper status: 100% of the non-skipped APIs in the audited headers
-are exposed.
+are exposed. The percentage counts named entry points over the headers listed
+above; it says nothing about behaviour. Before 0.6.0 the `*ScheduleWithRunLoop`
+and `*SetDispatchQueue` wrappers only used the current thread's run loop in the
+default mode or a queue private to the crate, and callback contexts were not
+retained; they now take any run loop, mode or queue and keep the callback alive
+while SystemConfiguration can call it.
 
 ## DynamicStore
 
@@ -76,7 +81,8 @@ are exposed.
   `SCPreferencesRemoveValue`, `SCPreferencesSetCallback`,
   `SCPreferencesScheduleWithRunLoop`, `SCPreferencesUnscheduleFromRunLoop`,
   `SCPreferencesSetDispatchQueue`, and `SCPreferencesSynchronize` are wrapped by
-  `Preferences` / `PreferencesNotification`.
+  `Preferences` / `PreferencesNotification`. `SCPreferencesLock` returns a
+  `PreferencesLock` guard that calls `SCPreferencesUnlock` when dropped.
 
 ### `SCPreferencesPath.h`
 

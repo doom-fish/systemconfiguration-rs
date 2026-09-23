@@ -2,9 +2,8 @@
 
 Safe Rust bindings for Apple’s `SystemConfiguration.framework` on macOS.
 
-Version `0.4.0` continues the `screencapturekit-rs`-style Swift bridge
-introduced in `0.2.0`: Cargo builds a small SwiftPM static library, Rust owns
-opaque retained handles, and the public API stays ergonomic on the Rust side.
+Cargo builds a small SwiftPM static library, Rust owns opaque retained
+handles, and the public API stays ergonomic on the Rust side.
 If you need async notification streams, enable the `async` feature. If you
 still need low-level C symbols, enable the `raw-ffi` feature.
 
@@ -33,25 +32,34 @@ by the current bridge release:
 See [COVERAGE.md](COVERAGE.md) for the per-header audit, including the APIs that
 are intentionally skipped on modern macOS.
 
+## Requirements
+
+- macOS 10.15 or later (the Swift bridge's deployment target)
+- Xcode or the Command Line Tools with a Swift toolchain
+- Root, or an `AuthorizationRef` for `Preferences`, to change configuration:
+  without it, SystemConfiguration answers `kSCStatusAccessError` (code 1003)
+  to dynamic-store writes and notifications and to preferences commits and
+  locks. Reading, watching keys and reachability need no privileges.
+
 ## Installation
 
 ```toml
 [dependencies]
-systemconfiguration-rs = "0.4"
+systemconfiguration-rs = "0.6"
 ```
 
 Enable async notification streams when needed:
 
 ```toml
 [dependencies]
-systemconfiguration-rs = { version = "0.4", features = ["async"] }
+systemconfiguration-rs = { version = "0.6", features = ["async"] }
 ```
 
 Enable raw C access when needed:
 
 ```toml
 [dependencies]
-systemconfiguration-rs = { version = "0.4", features = ["raw-ffi"] }
+systemconfiguration-rs = { version = "0.6", features = ["raw-ffi"] }
 ```
 
 The crate name is `systemconfiguration-rs`; the Rust library name is
@@ -81,6 +89,43 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+## Callbacks and scheduling
+
+`DynamicStore`, `Preferences`, `NetworkConnection` and `Reachability` deliver
+callbacks on any `CFRunLoop` in a `RunLoopMode` (`Default`, `Common` or
+`Named`), or on a `DispatchQueue` you pass in. `CFRunLoop`, `DispatchQueue`
+and `DispatchQoS` are re-exported from `apple-cf`.
+
+```rust,no_run
+use systemconfiguration::{DispatchQoS, DispatchQueue, DynamicStore};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let store = DynamicStore::new_with_callback("com.example.watcher", |keys| {
+        println!("changed: {keys:?}");
+    })?;
+    let key = DynamicStore::computer_name_key()?;
+    store.set_notification_keys(&[key.as_str()], &[] as &[&str])?;
+    let queue = DispatchQueue::new("com.example.watcher", DispatchQoS::Utility);
+    store.set_dispatch_queue(&queue)?;
+    Ok(())
+}
+```
+
+- SystemConfiguration holds its own reference to the callback for as long as
+  it can call it, so a callback that is already running when you drop the
+  handle, or replace a `Preferences` callback, finishes safely.
+- Dropping the last handle (clones share one registration) stops new
+  callbacks, then unschedules the object from every run loop and mode it was
+  scheduled on, clears its dispatch queue and callback, and invalidates the
+  `DynamicStore`'s run-loop sources. The closure is dropped at that point
+  unless it is running.
+- `Reachability::set_callback` takes a closure that is not `Send`; such a
+  callback may only run on the owning thread's run loop. Use
+  `set_callback_send` for other run loops and dispatch queues.
+- `Preferences::lock` returns a `PreferencesLock` that unlocks when dropped.
+- SystemConfiguration never frees an `SCNetworkConnection` that has a
+  callback; the Rust closure is still dropped with the last handle.
+
 ## Highlights
 
 - Swift bridge primary implementation with one Swift file per logical area
@@ -93,7 +138,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
   `doom-fish-utils::stream::BoundedAsyncStream`
 - `raw-ffi` feature preserving direct access to the underlying C APIs already
   declared by the crate
-- 14 numbered examples under `examples/` and 15 smoke tests under `tests/`
+- 15 numbered examples under `examples/`, 15 integration test files under
+  `tests/`, and unit tests for callback teardown
 
 ## Architecture
 
@@ -120,7 +166,7 @@ Run individual examples as needed:
 
 ## API notes
 
-- Writing to the dynamic store or preferences can require elevated privileges;
+- Writing to the dynamic store or preferences needs root (see Requirements);
   read-only smoke examples are used where the host environment denies mutation.
 - Apple deprecates `SCNetworkReachability*` in favor of `Network.framework`, but
   these APIs remain wrapped because they are still widely deployed.
