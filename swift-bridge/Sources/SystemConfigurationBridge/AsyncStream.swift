@@ -9,6 +9,20 @@ private final class RunLoopCapture {
     var runLoop: CFRunLoop?
 }
 
+private let asyncQueueKey = DispatchSpecificKey<ObjectIdentifier>()
+
+private func makeAsyncQueue(label: String) -> DispatchQueue {
+    let queue = DispatchQueue(label: label, qos: .utility)
+    queue.setSpecific(key: asyncQueueKey, value: ObjectIdentifier(queue))
+    return queue
+}
+
+private func drainAsyncQueue(_ queue: DispatchQueue) {
+    if DispatchQueue.getSpecific(key: asyncQueueKey) != ObjectIdentifier(queue) {
+        queue.sync {}
+    }
+}
+
 private final class DynamicStoreAsyncCallbackBox {
     let onEvent: AsyncEventCallback
     let ctx: UnsafeMutableRawPointer
@@ -197,7 +211,7 @@ public func sc_reachability_notification_subscribe(
     }
     guard callbackSet else { return nil }
 
-    let queue = DispatchQueue(label: "systemconfiguration-rs.async-reachability", qos: .utility)
+    let queue = makeAsyncQueue(label: "systemconfiguration-rs.async-reachability")
     guard SCNetworkReachabilitySetDispatchQueue(reachability, queue) else {
         SCNetworkReachabilitySetCallback(reachability, nil, nil)
         return nil
@@ -216,6 +230,7 @@ public func sc_reachability_notification_unsubscribe(_ handle: UnsafeMutableRawP
     let holder = Unmanaged<ReachabilityNotificationHolder>.fromOpaque(handle).takeRetainedValue()
     SCNetworkReachabilitySetDispatchQueue(holder.reachability, nil)
     SCNetworkReachabilitySetCallback(holder.reachability, nil, nil)
+    drainAsyncQueue(holder.queue)
 }
 
 private final class PreferencesAsyncCallbackBox {
@@ -277,7 +292,7 @@ public func sc_preferences_notification_subscribe(
     }
     guard callbackSet else { return nil }
 
-    let queue = DispatchQueue(label: "systemconfiguration-rs.async-preferences", qos: .utility)
+    let queue = makeAsyncQueue(label: "systemconfiguration-rs.async-preferences")
     guard SCPreferencesSetDispatchQueue(prefs, queue) else {
         SCPreferencesSetCallback(prefs, nil, nil)
         return nil
@@ -296,4 +311,5 @@ public func sc_preferences_notification_unsubscribe(_ handle: UnsafeMutableRawPo
     let holder = Unmanaged<PreferencesNotificationHolder>.fromOpaque(handle).takeRetainedValue()
     SCPreferencesSetDispatchQueue(holder.prefs, nil)
     SCPreferencesSetCallback(holder.prefs, nil, nil)
+    drainAsyncQueue(holder.queue)
 }

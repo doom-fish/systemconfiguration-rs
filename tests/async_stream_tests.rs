@@ -43,6 +43,26 @@ mod async_stream {
     }
 
     #[test]
+    fn reachability_stream_delivers_and_tears_down_repeatedly() {
+        let mut received = 0;
+        for _ in 0..10 {
+            let stream = ReachabilityStream::subscribe("localhost", 8)
+                .expect("ReachabilityStream::subscribe should succeed");
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+            while std::time::Instant::now() < deadline {
+                if let Some(event) = stream.try_next() {
+                    assert!(event.flags.is_reachable());
+                    received += 1;
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }
+            drop(stream);
+        }
+        assert!(received > 0);
+    }
+
+    #[test]
     fn preferences_subscribe_and_drop() {
         let stream = PreferencesNotificationStream::subscribe("test-async-prefs", 8)
             .expect("PreferencesNotificationStream::subscribe should succeed");
