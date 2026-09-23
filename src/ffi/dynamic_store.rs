@@ -1,6 +1,6 @@
 use std::ffi::{c_char, c_void};
 
-use super::core::Handle;
+use super::core::{ContextCallback, Handle};
 
 pub(crate) type DynamicStoreCallback =
     Option<unsafe extern "C" fn(changed_keys_raw: Handle, info: *mut c_void)>;
@@ -17,12 +17,16 @@ unsafe extern "C" {
         use_session_keys: u8,
         callback: DynamicStoreCallback,
         info: *mut c_void,
+        retain_info: ContextCallback,
+        release_info: ContextCallback,
     ) -> Handle;
     pub(crate) fn sc_dynamic_store_create_with_options_and_callback(
         name: *const c_char,
         options: Handle,
         callback: DynamicStoreCallback,
         info: *mut c_void,
+        retain_info: ContextCallback,
+        release_info: ContextCallback,
     ) -> Handle;
     pub(crate) fn sc_dynamic_store_copy_key_list(raw: Handle, pattern: *const c_char) -> Handle;
     pub(crate) fn sc_dynamic_store_copy_value(raw: Handle, key: *const c_char) -> Handle;
@@ -58,8 +62,10 @@ unsafe extern "C" {
         notify_count: isize,
     ) -> u8;
     pub(crate) fn sc_dynamic_store_create_run_loop_source(raw: Handle, order: isize) -> Handle;
-    pub(crate) fn sc_run_loop_source_schedule_current_default_mode(raw: Handle) -> u8;
-    pub(crate) fn sc_run_loop_source_unschedule_current_default_mode(raw: Handle) -> u8;
+    pub(crate) fn sc_run_loop_source_is_valid(raw: Handle) -> u8;
+    pub(crate) fn sc_run_loop_source_schedule(raw: Handle, run_loop: Handle, mode: Handle) -> u8;
+    pub(crate) fn sc_run_loop_source_unschedule(raw: Handle, run_loop: Handle, mode: Handle) -> u8;
+    pub(crate) fn sc_dynamic_store_set_dispatch_queue(raw: Handle, queue: Handle) -> u8;
     pub(crate) fn sc_dynamic_store_set_dispatch_queue_global(raw: Handle) -> u8;
     pub(crate) fn sc_dynamic_store_clear_dispatch_queue(raw: Handle) -> u8;
     pub(crate) fn sc_dynamic_store_copy_notified_keys(raw: Handle) -> Handle;

@@ -2,11 +2,24 @@ import Foundation
 import SystemConfiguration
 import SystemConfiguration.SCDynamicStoreCopyDHCPInfo
 
+private let runLoopSourceTeardownMode = CFRunLoopMode("systemconfiguration-rs.teardown" as CFString)
+
 final class RunLoopSourceBox {
     let value: CFRunLoopSource
+    var wasScheduled: Bool
 
     init(_ value: CFRunLoopSource) {
         self.value = value
+        wasScheduled = false
+    }
+
+    func invalidate() {
+        if !wasScheduled {
+            let runLoop = CFRunLoopGetCurrent()
+            CFRunLoopAddSource(runLoop, value, runLoopSourceTeardownMode)
+            CFRunLoopRemoveSource(runLoop, value, runLoopSourceTeardownMode)
+        }
+        CFRunLoopSourceInvalidate(value)
     }
 }
 
@@ -43,41 +56,51 @@ public func sc_dynamic_store_create_with_options(
     return retain(DynamicStoreBox(store))
 }
 
+private func dynamicStoreContext(_ callbackBox: DynamicStoreCallbackBox) -> SCDynamicStoreContext {
+    SCDynamicStoreContext(
+        version: 0,
+        info: Unmanaged.passUnretained(callbackBox).toOpaque(),
+        retain: scContextRetain,
+        release: scContextRelease,
+        copyDescription: nil
+    )
+}
+
 @_cdecl("sc_dynamic_store_create_with_callback")
 public func sc_dynamic_store_create_with_callback(
     _ name: UnsafePointer<CChar>?,
     _ useSessionKeys: UInt8,
     _ callback: RustDynamicStoreCallback?,
-    _ info: UnsafeMutableRawPointer?
+    _ info: UnsafeMutableRawPointer?,
+    _ retainInfo: RustContextCallback?,
+    _ releaseInfo: RustContextCallback?
 ) -> UnsafeMutableRawPointer? {
     guard let name = decodeCString(name), let callback else {
         return nil
     }
 
-    let callbackBox = DynamicStoreCallbackBox(callback: callback, info: info)
-    var context = SCDynamicStoreContext(
-        version: 0,
-        info: Unmanaged.passUnretained(callbackBox).toOpaque(),
-        retain: nil,
-        release: nil,
-        copyDescription: nil
+    let callbackBox = DynamicStoreCallbackBox(
+        callback: callback,
+        info: info,
+        retainInfo: retainInfo,
+        releaseInfo: releaseInfo
     )
+    var context = dynamicStoreContext(callbackBox)
 
-    let store: SCDynamicStore? = withUnsafeMutablePointer(to: &context) { contextPtr in
-        if useSessionKeys != 0 {
-            let options: NSDictionary = [kSCDynamicStoreUseSessionKeys as String: true]
-            return SCDynamicStoreCreateWithOptions(nil, name as CFString, options, dynamicStoreCallback, contextPtr)
+    let store: SCDynamicStore? = withExtendedLifetime(callbackBox) {
+        withUnsafeMutablePointer(to: &context) { contextPtr in
+            if useSessionKeys != 0 {
+                let options: NSDictionary = [kSCDynamicStoreUseSessionKeys as String: true]
+                return SCDynamicStoreCreateWithOptions(nil, name as CFString, options, dynamicStoreCallback, contextPtr)
+            }
+            return SCDynamicStoreCreate(nil, name as CFString, dynamicStoreCallback, contextPtr)
         }
-        return SCDynamicStoreCreate(nil, name as CFString, dynamicStoreCallback, contextPtr)
     }
 
     guard let store else {
         return nil
     }
-
-    let box = DynamicStoreBox(store)
-    box.callbackBox = callbackBox
-    return retain(box)
+    return retain(DynamicStoreBox(store))
 }
 
 @_cdecl("sc_dynamic_store_create_with_options_and_callback")
@@ -85,7 +108,9 @@ public func sc_dynamic_store_create_with_options_and_callback(
     _ name: UnsafePointer<CChar>?,
     _ optionsRaw: UnsafeMutableRawPointer?,
     _ callback: RustDynamicStoreCallback?,
-    _ info: UnsafeMutableRawPointer?
+    _ info: UnsafeMutableRawPointer?,
+    _ retainInfo: RustContextCallback?,
+    _ releaseInfo: RustContextCallback?
 ) -> UnsafeMutableRawPointer? {
     guard let name = decodeCString(name),
           let callback,
@@ -94,25 +119,23 @@ public func sc_dynamic_store_create_with_options_and_callback(
         return nil
     }
 
-    let callbackBox = DynamicStoreCallbackBox(callback: callback, info: info)
-    var context = SCDynamicStoreContext(
-        version: 0,
-        info: Unmanaged.passUnretained(callbackBox).toOpaque(),
-        retain: nil,
-        release: nil,
-        copyDescription: nil
+    let callbackBox = DynamicStoreCallbackBox(
+        callback: callback,
+        info: info,
+        retainInfo: retainInfo,
+        releaseInfo: releaseInfo
     )
+    var context = dynamicStoreContext(callbackBox)
 
-    let store = withUnsafeMutablePointer(to: &context) { contextPtr in
-        SCDynamicStoreCreateWithOptions(nil, name as CFString, options, dynamicStoreCallback, contextPtr)
+    let store = withExtendedLifetime(callbackBox) {
+        withUnsafeMutablePointer(to: &context) { contextPtr in
+            SCDynamicStoreCreateWithOptions(nil, name as CFString, options, dynamicStoreCallback, contextPtr)
+        }
     }
     guard let store else {
         return nil
     }
-
-    let box = DynamicStoreBox(store)
-    box.callbackBox = callbackBox
-    return retain(box)
+    return retain(DynamicStoreBox(store))
 }
 
 @_cdecl("sc_dynamic_store_set_multiple")
@@ -149,25 +172,66 @@ public func sc_dynamic_store_create_run_loop_source(
     guard let box = dynamicStore(raw), let source = SCDynamicStoreCreateRunLoopSource(nil, box.value, order) else {
         return nil
     }
-    return retain(RunLoopSourceBox(source))
+    let sourceBox = RunLoopSourceBox(source)
+    box.runLoopSources.append(sourceBox)
+    return retain(sourceBox)
 }
 
-@_cdecl("sc_run_loop_source_schedule_current_default_mode")
-public func sc_run_loop_source_schedule_current_default_mode(_ raw: UnsafeMutableRawPointer?) -> UInt8 {
+@_cdecl("sc_run_loop_source_is_valid")
+public func sc_run_loop_source_is_valid(_ raw: UnsafeMutableRawPointer?) -> UInt8 {
     guard let source = runLoopSource(raw) else {
         return 0
     }
-    CFRunLoopAddSource(CFRunLoopGetCurrent(), source.value, .defaultMode)
+    return u8(CFRunLoopSourceIsValid(source.value))
+}
+
+@_cdecl("sc_run_loop_source_schedule")
+public func sc_run_loop_source_schedule(
+    _ raw: UnsafeMutableRawPointer?,
+    _ runLoopRaw: UnsafeMutableRawPointer?,
+    _ modeRaw: UnsafeMutableRawPointer?
+) -> UInt8 {
+    guard let source = runLoopSource(raw),
+          let runLoop = runLoopArgument(runLoopRaw),
+          let mode = runLoopModeArgument(modeRaw),
+          CFRunLoopSourceIsValid(source.value)
+    else {
+        return 0
+    }
+    CFRunLoopAddSource(runLoop, source.value, CFRunLoopMode(mode))
+    source.wasScheduled = true
     return 1
 }
 
-@_cdecl("sc_run_loop_source_unschedule_current_default_mode")
-public func sc_run_loop_source_unschedule_current_default_mode(_ raw: UnsafeMutableRawPointer?) -> UInt8 {
-    guard let source = runLoopSource(raw) else {
+@_cdecl("sc_run_loop_source_unschedule")
+public func sc_run_loop_source_unschedule(
+    _ raw: UnsafeMutableRawPointer?,
+    _ runLoopRaw: UnsafeMutableRawPointer?,
+    _ modeRaw: UnsafeMutableRawPointer?
+) -> UInt8 {
+    guard let source = runLoopSource(raw),
+          let runLoop = runLoopArgument(runLoopRaw),
+          let mode = runLoopModeArgument(modeRaw)
+    else {
         return 0
     }
-    CFRunLoopRemoveSource(CFRunLoopGetCurrent(), source.value, .defaultMode)
+    CFRunLoopRemoveSource(runLoop, source.value, CFRunLoopMode(mode))
     return 1
+}
+
+@_cdecl("sc_dynamic_store_set_dispatch_queue")
+public func sc_dynamic_store_set_dispatch_queue(
+    _ raw: UnsafeMutableRawPointer?,
+    _ queueRaw: UnsafeMutableRawPointer?
+) -> UInt8 {
+    guard let box = dynamicStore(raw), let queue = dispatchQueueArgument(queueRaw) else {
+        return 0
+    }
+    let ok = SCDynamicStoreSetDispatchQueue(box.value, queue)
+    if ok {
+        box.dispatchQueue = queue
+    }
+    return u8(ok)
 }
 
 @_cdecl("sc_dynamic_store_set_dispatch_queue_global")

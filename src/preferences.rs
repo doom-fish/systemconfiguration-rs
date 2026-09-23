@@ -1,28 +1,29 @@
 use std::{
+    cell::RefCell,
     ffi::c_void,
     ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign},
-    panic::AssertUnwindSafe,
     ptr::NonNull,
-    sync::{Arc, Mutex},
+    rc::Rc,
+    sync::Mutex,
 };
 
-use crate::{bridge, error::Result, ffi, network_services::NetworkService, PropertyList};
+use apple_cf::{cf::CFRunLoop, dispatch_queue::DispatchQueue};
+use doom_fish_utils::callback_context::CallbackContext;
 
-struct CallbackState {
-    callback: Box<dyn FnMut(PreferencesNotification) + Send>,
-}
+use crate::{
+    bridge, error::Result, ffi, network_services::NetworkService, PropertyList, RunLoopMode,
+};
+
+type PreferencesCallback = bridge::CallbackSlot<dyn FnMut(PreferencesNotification) + Send>;
+type PreferencesCallbackContext = CallbackContext<PreferencesCallback>;
 
 unsafe extern "C" fn preferences_callback(notification_type: u32, info: *mut c_void) {
-    if info.is_null() {
-        return;
-    }
-
-    let mutex = unsafe { &*info.cast::<Mutex<CallbackState>>() };
-    if let Ok(mut state) = mutex.lock() {
-        // Catch panics: unwinding across the Swift/C FFI boundary is UB.
-        let _ = std::panic::catch_unwind(AssertUnwindSafe(|| {
-            (state.callback)(PreferencesNotification::from_raw(notification_type));
-        }));
+    unsafe {
+        PreferencesCallbackContext::with(info, "preferences_callback", |slot| {
+            bridge::with_callback(slot, |callback| {
+                callback(PreferencesNotification::from_raw(notification_type));
+            });
+        });
     }
 }
 
@@ -80,11 +81,23 @@ impl BitAndAssign for PreferencesNotification {
     }
 }
 
+struct PreferencesInner {
+    raw: bridge::OwnedHandle,
+    callback: RefCell<Option<PreferencesCallbackContext>>,
+}
+
+impl Drop for PreferencesInner {
+    fn drop(&mut self) {
+        if let Some(callback) = self.callback.get_mut() {
+            bridge::retire_callback(callback);
+        }
+    }
+}
+
 #[derive(Clone)]
 /// Wraps `SCPreferencesRef`.
 pub struct Preferences {
-    raw: bridge::OwnedHandle,
-    callback_state: Option<Arc<Mutex<CallbackState>>>,
+    inner: Rc<PreferencesInner>,
 }
 
 impl std::fmt::Debug for Preferences {
@@ -127,7 +140,7 @@ impl Preferences {
     where
         F: FnMut(PreferencesNotification) + Send + 'static,
     {
-        let mut preferences = Self::new(name, prefs_id)?;
+        let preferences = Self::new(name, prefs_id)?;
         preferences.set_callback(callback)?;
         Ok(preferences)
     }
@@ -141,7 +154,7 @@ impl Preferences {
     where
         F: FnMut(PreferencesNotification) + Send + 'static,
     {
-        let mut preferences = Self::new_with_authorization(name, prefs_id)?;
+        let preferences = Self::new_with_authorization(name, prefs_id)?;
         preferences.set_callback(callback)?;
         Ok(preferences)
     }
@@ -160,7 +173,7 @@ impl Preferences {
     where
         F: FnMut(PreferencesNotification) + Send + 'static,
     {
-        let mut preferences =
+        let preferences =
             unsafe { Self::create_with_authorization(name, prefs_id, authorization) }?;
         preferences.set_callback(callback)?;
         Ok(preferences)
@@ -178,10 +191,7 @@ impl Preferences {
             )
         };
         let raw = bridge::owned_handle_or_last("sc_preferences_create", raw)?;
-        Ok(Self {
-            raw,
-            callback_state: None,
-        })
+        Ok(Self::from_owned_handle(raw))
     }
 
     unsafe fn create_with_authorization(
@@ -202,117 +212,164 @@ impl Preferences {
             )
         };
         let raw = bridge::owned_handle_or_last("sc_preferences_create_with_authorization", raw)?;
-        Ok(Self {
-            raw,
-            callback_state: None,
-        })
+        Ok(Self::from_owned_handle(raw))
+    }
+
+    fn from_owned_handle(raw: bridge::OwnedHandle) -> Self {
+        Self {
+            inner: Rc::new(PreferencesInner {
+                raw,
+                callback: RefCell::new(None),
+            }),
+        }
     }
 
     /// Wraps a helper on `SCPreferencesRef`.
-    pub fn set_callback<F>(&mut self, callback: F) -> Result<()>
+    pub fn set_callback<F>(&self, callback: F) -> Result<()>
     where
         F: FnMut(PreferencesNotification) + Send + 'static,
     {
-        let state = Arc::new(Mutex::new(CallbackState {
-            callback: Box::new(callback),
-        }));
-        self.set_callback_state(Some(state))
-    }
-
-    /// Wraps a helper on `SCPreferencesRef`.
-    pub fn clear_callback(&mut self) -> Result<()> {
-        self.set_callback_state(None)
-    }
-
-    fn set_callback_state(&mut self, callback: Option<Arc<Mutex<CallbackState>>>) -> Result<()> {
+        let context = PreferencesCallbackContext::new(Mutex::new(Some(Box::new(callback))));
         let ok = unsafe {
             ffi::preferences::sc_preferences_set_callback(
-                self.raw.as_ptr(),
-                callback
-                    .as_ref()
-                    .map(|_| preferences_callback as unsafe extern "C" fn(u32, *mut c_void)),
-                callback.as_ref().map_or(std::ptr::null_mut(), |state| {
-                    Arc::as_ptr(state).cast_mut().cast::<c_void>()
-                }),
+                self.as_ptr(),
+                Some(preferences_callback),
+                context.as_ptr(),
+                Some(PreferencesCallbackContext::RETAIN),
+                Some(PreferencesCallbackContext::RELEASE),
             )
         };
         bridge::bool_result("sc_preferences_set_callback", ok)?;
-        self.callback_state = callback;
+        let previous = self.inner.callback.replace(Some(context));
+        if let Some(previous) = &previous {
+            bridge::retire_callback(previous);
+        }
+        drop(previous);
         Ok(())
+    }
+
+    /// Wraps a helper on `SCPreferencesRef`.
+    pub fn clear_callback(&self) -> Result<()> {
+        if let Some(previous) = self.inner.callback.borrow().as_ref() {
+            bridge::retire_callback(previous);
+        }
+        let ok = unsafe {
+            ffi::preferences::sc_preferences_set_callback(
+                self.as_ptr(),
+                None,
+                std::ptr::null_mut(),
+                None,
+                None,
+            )
+        };
+        bridge::bool_result("sc_preferences_set_callback", ok)?;
+        drop(self.inner.callback.take());
+        Ok(())
+    }
+
+    pub fn schedule_with_run_loop(
+        &self,
+        run_loop: &CFRunLoop,
+        mode: RunLoopMode<'_>,
+    ) -> Result<()> {
+        let ok = mode.with_raw(|mode| unsafe {
+            ffi::preferences::sc_preferences_schedule_with_run_loop(
+                self.as_ptr(),
+                run_loop.as_ptr(),
+                mode,
+            )
+        });
+        bridge::bool_result("sc_preferences_schedule_with_run_loop", ok)
+    }
+
+    pub fn unschedule_from_run_loop(
+        &self,
+        run_loop: &CFRunLoop,
+        mode: RunLoopMode<'_>,
+    ) -> Result<()> {
+        let ok = mode.with_raw(|mode| unsafe {
+            ffi::preferences::sc_preferences_unschedule_from_run_loop(
+                self.as_ptr(),
+                run_loop.as_ptr(),
+                mode,
+            )
+        });
+        bridge::bool_result("sc_preferences_unschedule_from_run_loop", ok)
     }
 
     /// Wraps `SCPreferencesScheduleWithRunLoopCurrent`.
     pub fn schedule_with_run_loop_current(&self) -> Result<()> {
-        let ok = unsafe {
-            ffi::preferences::sc_preferences_schedule_with_run_loop_current(self.raw.as_ptr())
-        };
-        bridge::bool_result("sc_preferences_schedule_with_run_loop_current", ok)
+        self.schedule_with_run_loop(&CFRunLoop::current(), RunLoopMode::Default)
     }
 
     /// Wraps `SCPreferencesUnscheduleFromRunLoopCurrent`.
     pub fn unschedule_from_run_loop_current(&self) -> Result<()> {
+        self.unschedule_from_run_loop(&CFRunLoop::current(), RunLoopMode::Default)
+    }
+
+    pub fn set_dispatch_queue(&self, queue: &DispatchQueue) -> Result<()> {
         let ok = unsafe {
-            ffi::preferences::sc_preferences_unschedule_from_run_loop_current(self.raw.as_ptr())
+            ffi::preferences::sc_preferences_set_dispatch_queue(
+                self.as_ptr(),
+                queue.as_ptr().cast_mut(),
+            )
         };
-        bridge::bool_result("sc_preferences_unschedule_from_run_loop_current", ok)
+        bridge::bool_result("sc_preferences_set_dispatch_queue", ok)
     }
 
     /// Wraps `SCPreferencesSetDispatchQueueGlobal`.
     pub fn set_dispatch_queue_global(&self) -> Result<()> {
-        let ok = unsafe {
-            ffi::preferences::sc_preferences_set_dispatch_queue_global(self.raw.as_ptr())
-        };
+        let ok =
+            unsafe { ffi::preferences::sc_preferences_set_dispatch_queue_global(self.as_ptr()) };
         bridge::bool_result("sc_preferences_set_dispatch_queue_global", ok)
     }
 
     /// Wraps `SCPreferencesClearDispatchQueue`.
     pub fn clear_dispatch_queue(&self) -> Result<()> {
-        let ok =
-            unsafe { ffi::preferences::sc_preferences_clear_dispatch_queue(self.raw.as_ptr()) };
+        let ok = unsafe { ffi::preferences::sc_preferences_clear_dispatch_queue(self.as_ptr()) };
         bridge::bool_result("sc_preferences_clear_dispatch_queue", ok)
     }
 
     /// Wraps `SCPreferencesLock`.
     pub fn lock(&self, wait: bool) -> Result<()> {
-        let ok =
-            unsafe { ffi::preferences::sc_preferences_lock(self.raw.as_ptr(), u8::from(wait)) };
+        let ok = unsafe { ffi::preferences::sc_preferences_lock(self.as_ptr(), u8::from(wait)) };
         bridge::bool_result("sc_preferences_lock", ok)
     }
 
     /// Wraps `SCPreferencesCommitChanges`.
     pub fn commit_changes(&self) -> Result<()> {
-        let ok = unsafe { ffi::preferences::sc_preferences_commit_changes(self.raw.as_ptr()) };
+        let ok = unsafe { ffi::preferences::sc_preferences_commit_changes(self.as_ptr()) };
         bridge::bool_result("sc_preferences_commit_changes", ok)
     }
 
     /// Wraps `SCPreferencesApplyChanges`.
     pub fn apply_changes(&self) -> Result<()> {
-        let ok = unsafe { ffi::preferences::sc_preferences_apply_changes(self.raw.as_ptr()) };
+        let ok = unsafe { ffi::preferences::sc_preferences_apply_changes(self.as_ptr()) };
         bridge::bool_result("sc_preferences_apply_changes", ok)
     }
 
     /// Wraps `SCPreferencesUnlock`.
     pub fn unlock(&self) -> Result<()> {
-        let ok = unsafe { ffi::preferences::sc_preferences_unlock(self.raw.as_ptr()) };
+        let ok = unsafe { ffi::preferences::sc_preferences_unlock(self.as_ptr()) };
         bridge::bool_result("sc_preferences_unlock", ok)
     }
 
     /// Wraps `SCPreferencesSynchronize`.
     pub fn synchronize(&self) {
-        unsafe { ffi::preferences::sc_preferences_synchronize(self.raw.as_ptr()) };
+        unsafe { ffi::preferences::sc_preferences_synchronize(self.as_ptr()) };
     }
 
     /// Wraps `SCPreferencesCopySignature`.
     pub fn signature(&self) -> Option<String> {
         bridge::take_optional_string(unsafe {
-            ffi::preferences::sc_preferences_copy_signature(self.raw.as_ptr())
+            ffi::preferences::sc_preferences_copy_signature(self.as_ptr())
         })
     }
 
     /// Wraps `SCPreferencesCopyKeyList`.
     pub fn copy_key_list(&self) -> Vec<String> {
         bridge::take_string_array(unsafe {
-            ffi::preferences::sc_preferences_copy_key_list(self.raw.as_ptr())
+            ffi::preferences::sc_preferences_copy_key_list(self.as_ptr())
         })
     }
 
@@ -320,7 +377,7 @@ impl Preferences {
     pub fn get_value(&self, key: &str) -> Result<Option<PropertyList>> {
         let key = bridge::cstring(key, "sc_preferences_get_value")?;
         let raw =
-            unsafe { ffi::preferences::sc_preferences_get_value(self.raw.as_ptr(), key.as_ptr()) };
+            unsafe { ffi::preferences::sc_preferences_get_value(self.as_ptr(), key.as_ptr()) };
         Ok(unsafe { bridge::OwnedHandle::from_raw(raw) }.map(PropertyList::from_owned_handle))
     }
 
@@ -328,11 +385,7 @@ impl Preferences {
     pub fn add_value(&self, key: &str, value: &PropertyList) -> Result<()> {
         let key = bridge::cstring(key, "sc_preferences_add_value")?;
         let ok = unsafe {
-            ffi::preferences::sc_preferences_add_value(
-                self.raw.as_ptr(),
-                key.as_ptr(),
-                value.as_ptr(),
-            )
+            ffi::preferences::sc_preferences_add_value(self.as_ptr(), key.as_ptr(), value.as_ptr())
         };
         bridge::bool_result("sc_preferences_add_value", ok)
     }
@@ -341,11 +394,7 @@ impl Preferences {
     pub fn set_value(&self, key: &str, value: &PropertyList) -> Result<()> {
         let key = bridge::cstring(key, "sc_preferences_set_value")?;
         let ok = unsafe {
-            ffi::preferences::sc_preferences_set_value(
-                self.raw.as_ptr(),
-                key.as_ptr(),
-                value.as_ptr(),
-            )
+            ffi::preferences::sc_preferences_set_value(self.as_ptr(), key.as_ptr(), value.as_ptr())
         };
         bridge::bool_result("sc_preferences_set_value", ok)
     }
@@ -353,9 +402,8 @@ impl Preferences {
     /// Wraps `SCPreferencesRemoveValue`.
     pub fn remove_value(&self, key: &str) -> Result<()> {
         let key = bridge::cstring(key, "sc_preferences_remove_value")?;
-        let ok = unsafe {
-            ffi::preferences::sc_preferences_remove_value(self.raw.as_ptr(), key.as_ptr())
-        };
+        let ok =
+            unsafe { ffi::preferences::sc_preferences_remove_value(self.as_ptr(), key.as_ptr()) };
         bridge::bool_result("sc_preferences_remove_value", ok)
     }
 
@@ -364,7 +412,7 @@ impl Preferences {
         let prefix = bridge::cstring(prefix, "sc_preferences_path_create_unique_child")?;
         Ok(bridge::take_optional_string(unsafe {
             ffi::preferences::sc_preferences_path_create_unique_child(
-                self.raw.as_ptr(),
+                self.as_ptr(),
                 prefix.as_ptr(),
             )
         }))
@@ -374,7 +422,7 @@ impl Preferences {
     pub fn path_get_value(&self, path: &str) -> Result<Option<PropertyList>> {
         let path = bridge::cstring(path, "sc_preferences_path_get_value")?;
         let raw = unsafe {
-            ffi::preferences::sc_preferences_path_get_value(self.raw.as_ptr(), path.as_ptr())
+            ffi::preferences::sc_preferences_path_get_value(self.as_ptr(), path.as_ptr())
         };
         Ok(unsafe { bridge::OwnedHandle::from_raw(raw) }.map(PropertyList::from_owned_handle))
     }
@@ -383,7 +431,7 @@ impl Preferences {
     pub fn path_get_link(&self, path: &str) -> Result<Option<String>> {
         let path = bridge::cstring(path, "sc_preferences_path_get_link")?;
         Ok(bridge::take_optional_string(unsafe {
-            ffi::preferences::sc_preferences_path_get_link(self.raw.as_ptr(), path.as_ptr())
+            ffi::preferences::sc_preferences_path_get_link(self.as_ptr(), path.as_ptr())
         }))
     }
 
@@ -392,7 +440,7 @@ impl Preferences {
         let path = bridge::cstring(path, "sc_preferences_path_set_value")?;
         let ok = unsafe {
             ffi::preferences::sc_preferences_path_set_value(
-                self.raw.as_ptr(),
+                self.as_ptr(),
                 path.as_ptr(),
                 value.as_ptr(),
             )
@@ -406,7 +454,7 @@ impl Preferences {
         let link = bridge::cstring(link, "sc_preferences_path_set_link")?;
         let ok = unsafe {
             ffi::preferences::sc_preferences_path_set_link(
-                self.raw.as_ptr(),
+                self.as_ptr(),
                 path.as_ptr(),
                 link.as_ptr(),
             )
@@ -418,7 +466,7 @@ impl Preferences {
     pub fn path_remove_value(&self, path: &str) -> Result<()> {
         let path = bridge::cstring(path, "sc_preferences_path_remove_value")?;
         let ok = unsafe {
-            ffi::preferences::sc_preferences_path_remove_value(self.raw.as_ptr(), path.as_ptr())
+            ffi::preferences::sc_preferences_path_remove_value(self.as_ptr(), path.as_ptr())
         };
         bridge::bool_result("sc_preferences_path_remove_value", ok)
     }
@@ -428,7 +476,7 @@ impl Preferences {
         let name = bridge::optional_cstring(name, "sc_preferences_set_computer_name")?;
         let ok = unsafe {
             ffi::preferences::sc_preferences_set_computer_name(
-                self.raw.as_ptr(),
+                self.as_ptr(),
                 name.as_ref()
                     .map_or(std::ptr::null(), |value| value.as_ptr()),
             )
@@ -441,7 +489,7 @@ impl Preferences {
         let name = bridge::optional_cstring(name, "sc_preferences_set_local_host_name")?;
         let ok = unsafe {
             ffi::preferences::sc_preferences_set_local_host_name(
-                self.raw.as_ptr(),
+                self.as_ptr(),
                 name.as_ref()
                     .map_or(std::ptr::null(), |value| value.as_ptr()),
             )
@@ -455,6 +503,104 @@ impl Preferences {
     }
 
     pub(crate) fn as_ptr(&self) -> bridge::RawHandle {
-        self.raw.as_ptr()
+        self.inner.raw.as_ptr()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        path::PathBuf,
+        sync::Arc,
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
+    use apple_cf::{
+        cf::CFRunLoop,
+        dispatch_queue::{DispatchQoS, DispatchQueue},
+    };
+
+    use super::Preferences;
+    use crate::{
+        bridge::test_support::{run_loop_mode_is_empty, wait_for, InFlightCall},
+        RunLoopMode,
+    };
+
+    fn temporary_preferences(name: &str) -> Preferences {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/test-data");
+        std::fs::create_dir_all(&dir).expect("test data dir");
+        let path = dir.join(format!("{name}-{nanos}.plist"));
+        Preferences::new(
+            "systemconfiguration-rs-unit-tests",
+            Some(path.to_string_lossy().as_ref()),
+        )
+        .expect("preferences")
+    }
+
+    fn set_witness_callback(prefs: &Preferences) -> Arc<()> {
+        let witness = Arc::new(());
+        let captured = Arc::clone(&witness);
+        prefs
+            .set_callback(move |_| {
+                let _ = &captured;
+            })
+            .expect("callback");
+        witness
+    }
+
+    fn hold(prefs: &Preferences) -> InFlightCall {
+        InFlightCall::hold(prefs.inner.callback.borrow().as_ref().expect("callback"))
+    }
+
+    #[test]
+    fn dropping_scheduled_preferences_releases_the_callback_after_an_in_flight_call() {
+        let prefs = temporary_preferences("unit-run-loop");
+        let witness = set_witness_callback(&prefs);
+        let run_loop = CFRunLoop::current();
+        prefs
+            .schedule_with_run_loop(&run_loop, RunLoopMode::Default)
+            .expect("schedule default");
+        let mode = "systemconfiguration-rs.unit-prefs-mode";
+        prefs
+            .schedule_with_run_loop(&run_loop, RunLoopMode::Named(mode))
+            .expect("schedule named");
+        assert!(!run_loop_mode_is_empty(mode));
+
+        let call = hold(&prefs);
+        drop(prefs);
+        assert!(run_loop_mode_is_empty(mode));
+        assert_eq!(Arc::strong_count(&witness), 2);
+
+        call.finish();
+        assert!(wait_for(|| Arc::strong_count(&witness) == 1));
+    }
+
+    #[test]
+    fn replacing_a_callback_during_an_in_flight_call_keeps_the_old_one_alive() {
+        let prefs = temporary_preferences("unit-replace");
+        prefs
+            .set_dispatch_queue(&DispatchQueue::new(
+                "systemconfiguration-rs.unit-prefs",
+                DispatchQoS::Utility,
+            ))
+            .expect("dispatch queue");
+        let first = set_witness_callback(&prefs);
+
+        let call = hold(&prefs);
+        let second = set_witness_callback(&prefs);
+        assert_eq!(Arc::strong_count(&first), 2);
+
+        call.finish();
+        assert!(wait_for(|| Arc::strong_count(&first) == 1));
+        assert_eq!(Arc::strong_count(&second), 2);
+
+        let call = hold(&prefs);
+        drop(prefs);
+        call.finish();
+        assert!(wait_for(|| Arc::strong_count(&second) == 1));
     }
 }

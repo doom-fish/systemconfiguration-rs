@@ -25,6 +25,63 @@ final class PropertyListBox {
     }
 }
 
+public typealias RustContextCallback = @convention(c) (UnsafeMutableRawPointer?) -> Void
+
+class RustCallbackContext {
+    let info: UnsafeMutableRawPointer?
+    private let releaseInfo: RustContextCallback?
+
+    init(info: UnsafeMutableRawPointer?, retainInfo: RustContextCallback?, releaseInfo: RustContextCallback?) {
+        self.info = info
+        self.releaseInfo = releaseInfo
+        if let info {
+            retainInfo?(info)
+        }
+    }
+
+    deinit {
+        if let info {
+            releaseInfo?(info)
+        }
+    }
+}
+
+let scContextRetain: @convention(c) (UnsafeRawPointer) -> UnsafeRawPointer = { info in
+    _ = Unmanaged<AnyObject>.fromOpaque(info).retain()
+    return info
+}
+
+let scContextRelease: @convention(c) (UnsafeRawPointer) -> Void = { info in
+    Unmanaged<AnyObject>.fromOpaque(info).release()
+}
+
+struct RunLoopSchedule {
+    let runLoop: CFRunLoop
+    let mode: CFString
+
+    func matches(_ runLoop: CFRunLoop, _ mode: CFString) -> Bool {
+        self.runLoop === runLoop && CFEqual(self.mode, mode)
+    }
+}
+
+func removeSchedule(_ schedules: inout [RunLoopSchedule], _ runLoop: CFRunLoop, _ mode: CFString) {
+    if let index = schedules.firstIndex(where: { $0.matches(runLoop, mode) }) {
+        schedules.remove(at: index)
+    }
+}
+
+func runLoopArgument(_ raw: UnsafeMutableRawPointer?) -> CFRunLoop? {
+    raw.map { Unmanaged<CFRunLoop>.fromOpaque($0).takeUnretainedValue() }
+}
+
+func runLoopModeArgument(_ raw: UnsafeMutableRawPointer?) -> CFString? {
+    raw.map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() }
+}
+
+func dispatchQueueArgument(_ raw: UnsafeMutableRawPointer?) -> DispatchQueue? {
+    raw.map { Unmanaged<DispatchQueue>.fromOpaque($0).takeUnretainedValue() }
+}
+
 func retain(_ object: some AnyObject) -> UnsafeMutableRawPointer {
     Unmanaged.passRetained(object).toOpaque()
 }

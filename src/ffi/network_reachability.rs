@@ -1,6 +1,6 @@
 use std::ffi::c_void;
 
-use super::core::Handle;
+use super::core::{ContextCallback, Handle};
 
 pub(crate) type ReachabilityCallback = Option<unsafe extern "C" fn(flags: u32, info: *mut c_void)>;
 
@@ -19,9 +19,20 @@ unsafe extern "C" {
         raw: Handle,
         callback: ReachabilityCallback,
         info: *mut c_void,
+        retain_info: ContextCallback,
+        release_info: ContextCallback,
     ) -> u8;
-    pub(crate) fn sc_reachability_schedule_with_run_loop_current(raw: Handle) -> u8;
-    pub(crate) fn sc_reachability_unschedule_from_run_loop_current(raw: Handle) -> u8;
+    pub(crate) fn sc_reachability_schedule_with_run_loop(
+        raw: Handle,
+        run_loop: Handle,
+        mode: Handle,
+    ) -> u8;
+    pub(crate) fn sc_reachability_unschedule_from_run_loop(
+        raw: Handle,
+        run_loop: Handle,
+        mode: Handle,
+    ) -> u8;
+    pub(crate) fn sc_reachability_set_dispatch_queue(raw: Handle, queue: Handle) -> u8;
     pub(crate) fn sc_reachability_set_dispatch_queue_global(raw: Handle) -> u8;
     pub(crate) fn sc_reachability_clear_dispatch_queue(raw: Handle) -> u8;
 }

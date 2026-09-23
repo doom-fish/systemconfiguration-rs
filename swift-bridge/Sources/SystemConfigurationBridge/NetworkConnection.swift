@@ -1,25 +1,38 @@
 import Foundation
 import SystemConfiguration
 
-final class NetworkConnectionCallbackBox {
+final class NetworkConnectionCallbackBox: RustCallbackContext {
     let callback: RustNetworkConnectionCallback
-    let info: UnsafeMutableRawPointer?
 
-    init(callback: @escaping RustNetworkConnectionCallback, info: UnsafeMutableRawPointer?) {
+    init(
+        callback: @escaping RustNetworkConnectionCallback,
+        info: UnsafeMutableRawPointer?,
+        retainInfo: RustContextCallback?,
+        releaseInfo: RustContextCallback?
+    ) {
         self.callback = callback
-        self.info = info
+        super.init(info: info, retainInfo: retainInfo, releaseInfo: releaseInfo)
     }
 }
 
 final class NetworkConnectionBox {
     let value: SCNetworkConnection
-    var callbackBox: NetworkConnectionCallbackBox?
     var dispatchQueue: DispatchQueue?
+    var schedules: [RunLoopSchedule]
 
     init(_ value: SCNetworkConnection) {
         self.value = value
-        callbackBox = nil
         dispatchQueue = nil
+        schedules = []
+    }
+
+    deinit {
+        for schedule in schedules {
+            SCNetworkConnectionUnscheduleFromRunLoop(value, schedule.runLoop, schedule.mode)
+        }
+        if dispatchQueue != nil {
+            SCNetworkConnectionSetDispatchQueue(value, nil)
+        }
     }
 }
 
@@ -64,42 +77,47 @@ public func sc_network_connection_get_type_id() -> UInt64 {
 public func sc_network_connection_create_with_service_id(
     _ serviceID: UnsafePointer<CChar>?,
     _ callback: RustNetworkConnectionCallback?,
-    _ info: UnsafeMutableRawPointer?
+    _ info: UnsafeMutableRawPointer?,
+    _ retainInfo: RustContextCallback?,
+    _ releaseInfo: RustContextCallback?
 ) -> UnsafeMutableRawPointer? {
     guard let serviceID = decodeCString(serviceID) else {
         return nil
     }
 
-    let callbackBox = callback.map { NetworkConnectionCallbackBox(callback: $0, info: info) }
-    var context = SCNetworkConnectionContext(
-        version: 0,
-        info: callbackBox.map { Unmanaged.passUnretained($0).toOpaque() },
-        retain: nil,
-        release: nil,
-        copyDescription: nil
-    )
-
     let connection: SCNetworkConnection?
-    if callbackBox == nil {
-        connection = SCNetworkConnectionCreateWithServiceID(nil, serviceID as CFString, nil, nil)
-    } else {
-        connection = withUnsafeMutablePointer(to: &context) { contextPtr in
-            SCNetworkConnectionCreateWithServiceID(
-                nil,
-                serviceID as CFString,
-                networkConnectionCallback,
-                contextPtr
-            )
+    if let callback {
+        let callbackBox = NetworkConnectionCallbackBox(
+            callback: callback,
+            info: info,
+            retainInfo: retainInfo,
+            releaseInfo: releaseInfo
+        )
+        var context = SCNetworkConnectionContext(
+            version: 0,
+            info: Unmanaged.passUnretained(callbackBox).toOpaque(),
+            retain: scContextRetain,
+            release: scContextRelease,
+            copyDescription: nil
+        )
+        connection = withExtendedLifetime(callbackBox) {
+            withUnsafeMutablePointer(to: &context) { contextPtr in
+                SCNetworkConnectionCreateWithServiceID(
+                    nil,
+                    serviceID as CFString,
+                    networkConnectionCallback,
+                    contextPtr
+                )
+            }
         }
+    } else {
+        connection = SCNetworkConnectionCreateWithServiceID(nil, serviceID as CFString, nil, nil)
     }
 
     guard let connection else {
         return nil
     }
-
-    let box = NetworkConnectionBox(connection)
-    box.callbackBox = callbackBox
-    return retain(box)
+    return retain(NetworkConnectionBox(connection))
 }
 
 @_cdecl("sc_network_connection_copy_user_preferences_service_id")
@@ -173,32 +191,57 @@ public func sc_network_connection_stop(_ raw: UnsafeMutableRawPointer?, _ forceD
     return u8(SCNetworkConnectionStop(box.value, forceDisconnect != 0))
 }
 
-@_cdecl("sc_network_connection_schedule_with_run_loop_current")
-public func sc_network_connection_schedule_with_run_loop_current(_ raw: UnsafeMutableRawPointer?) -> UInt8 {
-    guard let box = networkConnection(raw) else {
+@_cdecl("sc_network_connection_schedule_with_run_loop")
+public func sc_network_connection_schedule_with_run_loop(
+    _ raw: UnsafeMutableRawPointer?,
+    _ runLoopRaw: UnsafeMutableRawPointer?,
+    _ modeRaw: UnsafeMutableRawPointer?
+) -> UInt8 {
+    guard let box = networkConnection(raw),
+          let runLoop = runLoopArgument(runLoopRaw),
+          let mode = runLoopModeArgument(modeRaw)
+    else {
         return 0
     }
-    return u8(
-        SCNetworkConnectionScheduleWithRunLoop(
-            box.value,
-            CFRunLoopGetCurrent(),
-            CFRunLoopMode.defaultMode.rawValue as CFString
-        )
-    )
+    let ok = SCNetworkConnectionScheduleWithRunLoop(box.value, runLoop, mode)
+    if ok {
+        box.schedules.append(RunLoopSchedule(runLoop: runLoop, mode: mode))
+    }
+    return u8(ok)
 }
 
-@_cdecl("sc_network_connection_unschedule_from_run_loop_current")
-public func sc_network_connection_unschedule_from_run_loop_current(_ raw: UnsafeMutableRawPointer?) -> UInt8 {
-    guard let box = networkConnection(raw) else {
+@_cdecl("sc_network_connection_unschedule_from_run_loop")
+public func sc_network_connection_unschedule_from_run_loop(
+    _ raw: UnsafeMutableRawPointer?,
+    _ runLoopRaw: UnsafeMutableRawPointer?,
+    _ modeRaw: UnsafeMutableRawPointer?
+) -> UInt8 {
+    guard let box = networkConnection(raw),
+          let runLoop = runLoopArgument(runLoopRaw),
+          let mode = runLoopModeArgument(modeRaw)
+    else {
         return 0
     }
-    return u8(
-        SCNetworkConnectionUnscheduleFromRunLoop(
-            box.value,
-            CFRunLoopGetCurrent(),
-            CFRunLoopMode.defaultMode.rawValue as CFString
-        )
-    )
+    let ok = SCNetworkConnectionUnscheduleFromRunLoop(box.value, runLoop, mode)
+    if ok {
+        removeSchedule(&box.schedules, runLoop, mode)
+    }
+    return u8(ok)
+}
+
+@_cdecl("sc_network_connection_set_dispatch_queue")
+public func sc_network_connection_set_dispatch_queue(
+    _ raw: UnsafeMutableRawPointer?,
+    _ queueRaw: UnsafeMutableRawPointer?
+) -> UInt8 {
+    guard let box = networkConnection(raw), let queue = dispatchQueueArgument(queueRaw) else {
+        return 0
+    }
+    let ok = SCNetworkConnectionSetDispatchQueue(box.value, queue)
+    if ok {
+        box.dispatchQueue = queue
+    }
+    return u8(ok)
 }
 
 @_cdecl("sc_network_connection_set_dispatch_queue_global")

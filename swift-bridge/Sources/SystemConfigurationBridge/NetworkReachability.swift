@@ -1,19 +1,43 @@
 import Foundation
 import SystemConfiguration
 
+final class ReachabilityCallbackBox: RustCallbackContext {
+    let callback: RustReachabilityCallback
+
+    init(
+        callback: @escaping RustReachabilityCallback,
+        info: UnsafeMutableRawPointer?,
+        retainInfo: RustContextCallback?,
+        releaseInfo: RustContextCallback?
+    ) {
+        self.callback = callback
+        super.init(info: info, retainInfo: retainInfo, releaseInfo: releaseInfo)
+    }
+}
+
 final class ReachabilityBox {
     let value: SCNetworkReachability
-    var callback: RustReachabilityCallback?
-    var callbackInfo: UnsafeMutableRawPointer?
-    var scheduled: Bool
+    var hasCallback: Bool
+    var schedules: [RunLoopSchedule]
     var dispatchQueue: DispatchQueue?
 
     init(_ value: SCNetworkReachability) {
         self.value = value
-        callback = nil
-        callbackInfo = nil
-        scheduled = false
+        hasCallback = false
+        schedules = []
         dispatchQueue = nil
+    }
+
+    deinit {
+        for schedule in schedules {
+            SCNetworkReachabilityUnscheduleFromRunLoop(value, schedule.runLoop, schedule.mode)
+        }
+        if dispatchQueue != nil {
+            SCNetworkReachabilitySetDispatchQueue(value, nil)
+        }
+        if hasCallback {
+            SCNetworkReachabilitySetCallback(value, nil, nil)
+        }
     }
 }
 
@@ -32,11 +56,8 @@ private func reachabilityCallback(
         return
     }
 
-    let box = Unmanaged<ReachabilityBox>.fromOpaque(info).takeUnretainedValue()
-    guard let callback = box.callback else {
-        return
-    }
-    callback(flags.rawValue, box.callbackInfo)
+    let callbackBox = Unmanaged<ReachabilityCallbackBox>.fromOpaque(info).takeUnretainedValue()
+    callbackBox.callback(flags.rawValue, callbackBox.info)
 }
 
 private func reachabilityFromAddressBytes(
@@ -131,60 +152,95 @@ public func sc_reachability_get_flags(
 public func sc_reachability_set_callback(
     _ raw: UnsafeMutableRawPointer?,
     _ callback: RustReachabilityCallback?,
-    _ info: UnsafeMutableRawPointer?
+    _ info: UnsafeMutableRawPointer?,
+    _ retainInfo: RustContextCallback?,
+    _ releaseInfo: RustContextCallback?
 ) -> UInt8 {
-    guard let raw, let box = reachability(raw) else {
+    guard let box = reachability(raw) else {
         return 0
     }
 
     guard let callback else {
-        box.callback = nil
-        box.callbackInfo = nil
-        return u8(SCNetworkReachabilitySetCallback(box.value, nil, nil))
+        let ok = SCNetworkReachabilitySetCallback(box.value, nil, nil)
+        if ok {
+            box.hasCallback = false
+        }
+        return u8(ok)
     }
 
+    let callbackBox = ReachabilityCallbackBox(
+        callback: callback,
+        info: info,
+        retainInfo: retainInfo,
+        releaseInfo: releaseInfo
+    )
     var context = SCNetworkReachabilityContext(
         version: 0,
-        info: raw,
-        retain: nil,
-        release: nil,
+        info: Unmanaged.passUnretained(callbackBox).toOpaque(),
+        retain: scContextRetain,
+        release: scContextRelease,
         copyDescription: nil
     )
-    box.callback = callback
-    box.callbackInfo = info
-    return u8(SCNetworkReachabilitySetCallback(box.value, reachabilityCallback, &context))
+    let ok = withExtendedLifetime(callbackBox) {
+        SCNetworkReachabilitySetCallback(box.value, reachabilityCallback, &context)
+    }
+    if ok {
+        box.hasCallback = true
+    }
+    return u8(ok)
 }
 
-@_cdecl("sc_reachability_schedule_with_run_loop_current")
-public func sc_reachability_schedule_with_run_loop_current(_ raw: UnsafeMutableRawPointer?) -> UInt8 {
-    guard let box = reachability(raw) else {
+@_cdecl("sc_reachability_schedule_with_run_loop")
+public func sc_reachability_schedule_with_run_loop(
+    _ raw: UnsafeMutableRawPointer?,
+    _ runLoopRaw: UnsafeMutableRawPointer?,
+    _ modeRaw: UnsafeMutableRawPointer?
+) -> UInt8 {
+    guard let box = reachability(raw),
+          let runLoop = runLoopArgument(runLoopRaw),
+          let mode = runLoopModeArgument(modeRaw)
+    else {
         return 0
     }
-
-    let scheduled = SCNetworkReachabilityScheduleWithRunLoop(
-        box.value,
-        CFRunLoopGetCurrent(),
-        CFRunLoopMode.defaultMode.rawValue as CFString
-    )
-    box.scheduled = scheduled
-    return u8(scheduled)
+    let ok = SCNetworkReachabilityScheduleWithRunLoop(box.value, runLoop, mode)
+    if ok {
+        box.schedules.append(RunLoopSchedule(runLoop: runLoop, mode: mode))
+    }
+    return u8(ok)
 }
 
-@_cdecl("sc_reachability_unschedule_from_run_loop_current")
-public func sc_reachability_unschedule_from_run_loop_current(_ raw: UnsafeMutableRawPointer?) -> UInt8 {
-    guard let box = reachability(raw) else {
+@_cdecl("sc_reachability_unschedule_from_run_loop")
+public func sc_reachability_unschedule_from_run_loop(
+    _ raw: UnsafeMutableRawPointer?,
+    _ runLoopRaw: UnsafeMutableRawPointer?,
+    _ modeRaw: UnsafeMutableRawPointer?
+) -> UInt8 {
+    guard let box = reachability(raw),
+          let runLoop = runLoopArgument(runLoopRaw),
+          let mode = runLoopModeArgument(modeRaw)
+    else {
         return 0
     }
-
-    let scheduled = SCNetworkReachabilityUnscheduleFromRunLoop(
-        box.value,
-        CFRunLoopGetCurrent(),
-        CFRunLoopMode.defaultMode.rawValue as CFString
-    )
-    if scheduled {
-        box.scheduled = false
+    let ok = SCNetworkReachabilityUnscheduleFromRunLoop(box.value, runLoop, mode)
+    if ok {
+        removeSchedule(&box.schedules, runLoop, mode)
     }
-    return u8(scheduled)
+    return u8(ok)
+}
+
+@_cdecl("sc_reachability_set_dispatch_queue")
+public func sc_reachability_set_dispatch_queue(
+    _ raw: UnsafeMutableRawPointer?,
+    _ queueRaw: UnsafeMutableRawPointer?
+) -> UInt8 {
+    guard let box = reachability(raw), let queue = dispatchQueueArgument(queueRaw) else {
+        return 0
+    }
+    let ok = SCNetworkReachabilitySetDispatchQueue(box.value, queue)
+    if ok {
+        box.dispatchQueue = queue
+    }
+    return u8(ok)
 }
 
 @_cdecl("sc_reachability_set_dispatch_queue_global")

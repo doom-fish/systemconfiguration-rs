@@ -1,10 +1,9 @@
-use std::{
-    ffi::c_void,
-    panic::AssertUnwindSafe,
-    sync::{Arc, Mutex},
-};
+use std::{ffi::c_void, rc::Rc, sync::Mutex};
 
-use crate::{bridge, error::Result, ffi, PropertyList, ReachabilityFlags};
+use apple_cf::{cf::CFRunLoop, dispatch_queue::DispatchQueue};
+use doom_fish_utils::callback_context::CallbackContext;
+
+use crate::{bridge, error::Result, ffi, PropertyList, ReachabilityFlags, RunLoopMode};
 
 /// Alias for `SCNetworkConnectionFlags` values.
 pub type NetworkConnectionFlags = ReachabilityFlags;
@@ -140,29 +139,36 @@ pub struct NetworkConnectionUserPreferences {
     pub user_options: Option<PropertyList>,
 }
 
-struct CallbackState {
-    callback: Box<dyn FnMut(NetworkConnectionStatus) + Send>,
-}
+type NetworkConnectionCallback = bridge::CallbackSlot<dyn FnMut(NetworkConnectionStatus) + Send>;
+type NetworkConnectionCallbackContext = CallbackContext<NetworkConnectionCallback>;
 
 unsafe extern "C" fn network_connection_callback(status: i32, info: *mut c_void) {
-    if info.is_null() {
-        return;
+    unsafe {
+        NetworkConnectionCallbackContext::with(info, "network_connection_callback", |slot| {
+            bridge::with_callback(slot, |callback| {
+                callback(NetworkConnectionStatus::from_raw(status));
+            });
+        });
     }
+}
 
-    let mutex = &*info.cast::<Mutex<CallbackState>>();
-    if let Ok(mut state) = mutex.lock() {
-        // Catch panics: unwinding across the Swift/C FFI boundary is UB.
-        let _ = std::panic::catch_unwind(AssertUnwindSafe(|| {
-            (state.callback)(NetworkConnectionStatus::from_raw(status));
-        }));
+struct NetworkConnectionInner {
+    raw: bridge::OwnedHandle,
+    callback: Option<NetworkConnectionCallbackContext>,
+}
+
+impl Drop for NetworkConnectionInner {
+    fn drop(&mut self) {
+        if let Some(callback) = &self.callback {
+            bridge::retire_callback(callback);
+        }
     }
 }
 
 #[derive(Clone)]
 /// Wraps `SCNetworkConnectionRef`.
 pub struct NetworkConnection {
-    raw: bridge::OwnedHandle,
-    _callback: Option<Arc<Mutex<CallbackState>>>,
+    inner: Rc<NetworkConnectionInner>,
 }
 
 impl std::fmt::Debug for NetworkConnection {
@@ -187,13 +193,14 @@ impl NetworkConnection {
     where
         F: FnMut(NetworkConnectionStatus) + Send + 'static,
     {
-        let state = Arc::new(Mutex::new(CallbackState {
-            callback: Box::new(callback),
-        }));
-        Self::create(service_id, Some(state))
+        let context = NetworkConnectionCallbackContext::new(Mutex::new(Some(Box::new(callback))));
+        Self::create(service_id, Some(context))
     }
 
-    fn create(service_id: &str, callback: Option<Arc<Mutex<CallbackState>>>) -> Result<Self> {
+    fn create(
+        service_id: &str,
+        callback: Option<NetworkConnectionCallbackContext>,
+    ) -> Result<Self> {
         let service_id =
             bridge::cstring(service_id, "sc_network_connection_create_with_service_id")?;
         let raw = unsafe {
@@ -202,16 +209,22 @@ impl NetworkConnection {
                 callback
                     .as_ref()
                     .map(|_| network_connection_callback as unsafe extern "C" fn(i32, *mut c_void)),
-                callback.as_ref().map_or(std::ptr::null_mut(), |state| {
-                    Arc::as_ptr(state).cast_mut().cast::<c_void>()
-                }),
+                callback.as_ref().map_or(
+                    std::ptr::null_mut(),
+                    NetworkConnectionCallbackContext::as_ptr,
+                ),
+                callback
+                    .as_ref()
+                    .map(|_| NetworkConnectionCallbackContext::RETAIN),
+                callback
+                    .as_ref()
+                    .map(|_| NetworkConnectionCallbackContext::RELEASE),
             )
         };
         let raw =
             bridge::owned_handle_or_last("sc_network_connection_create_with_service_id", raw)?;
         Ok(Self {
-            raw,
-            _callback: callback,
+            inner: Rc::new(NetworkConnectionInner { raw, callback }),
         })
     }
 
@@ -240,14 +253,14 @@ impl NetworkConnection {
     /// Wraps `SCNetworkConnectionCopyServiceID`.
     pub fn service_id(&self) -> Result<Option<String>> {
         Ok(bridge::take_optional_string(unsafe {
-            ffi::network_connection::sc_network_connection_copy_service_id(self.raw.as_ptr())
+            ffi::network_connection::sc_network_connection_copy_service_id(self.inner.raw.as_ptr())
         }))
     }
 
     /// Wraps `SCNetworkConnectionGetStatus`.
     pub fn status(&self) -> NetworkConnectionStatus {
         NetworkConnectionStatus::from_raw(unsafe {
-            ffi::network_connection::sc_network_connection_get_status(self.raw.as_ptr())
+            ffi::network_connection::sc_network_connection_get_status(self.inner.raw.as_ptr())
         })
     }
 
@@ -256,7 +269,7 @@ impl NetworkConnection {
         unsafe {
             bridge::OwnedHandle::from_raw(
                 ffi::network_connection::sc_network_connection_copy_extended_status(
-                    self.raw.as_ptr(),
+                    self.inner.raw.as_ptr(),
                 ),
             )
         }
@@ -267,7 +280,9 @@ impl NetworkConnection {
     pub fn statistics(&self) -> Option<PropertyList> {
         unsafe {
             bridge::OwnedHandle::from_raw(
-                ffi::network_connection::sc_network_connection_copy_statistics(self.raw.as_ptr()),
+                ffi::network_connection::sc_network_connection_copy_statistics(
+                    self.inner.raw.as_ptr(),
+                ),
             )
         }
         .map(PropertyList::from_owned_handle)
@@ -277,7 +292,9 @@ impl NetworkConnection {
     pub fn user_options(&self) -> Option<PropertyList> {
         unsafe {
             bridge::OwnedHandle::from_raw(
-                ffi::network_connection::sc_network_connection_copy_user_options(self.raw.as_ptr()),
+                ffi::network_connection::sc_network_connection_copy_user_options(
+                    self.inner.raw.as_ptr(),
+                ),
             )
         }
         .map(PropertyList::from_owned_handle)
@@ -287,7 +304,7 @@ impl NetworkConnection {
     pub fn start(&self, user_options: Option<&PropertyList>, linger: bool) -> Result<()> {
         let ok = unsafe {
             ffi::network_connection::sc_network_connection_start(
-                self.raw.as_ptr(),
+                self.inner.raw.as_ptr(),
                 user_options.map_or(std::ptr::null_mut(), PropertyList::as_ptr),
                 u8::from(linger),
             )
@@ -299,38 +316,68 @@ impl NetworkConnection {
     pub fn stop(&self, force_disconnect: bool) -> Result<()> {
         let ok = unsafe {
             ffi::network_connection::sc_network_connection_stop(
-                self.raw.as_ptr(),
+                self.inner.raw.as_ptr(),
                 u8::from(force_disconnect),
             )
         };
         bridge::bool_result("sc_network_connection_stop", ok)
     }
 
+    pub fn schedule_with_run_loop(
+        &self,
+        run_loop: &CFRunLoop,
+        mode: RunLoopMode<'_>,
+    ) -> Result<()> {
+        let ok = mode.with_raw(|mode| unsafe {
+            ffi::network_connection::sc_network_connection_schedule_with_run_loop(
+                self.inner.raw.as_ptr(),
+                run_loop.as_ptr(),
+                mode,
+            )
+        });
+        bridge::bool_result("sc_network_connection_schedule_with_run_loop", ok)
+    }
+
+    pub fn unschedule_from_run_loop(
+        &self,
+        run_loop: &CFRunLoop,
+        mode: RunLoopMode<'_>,
+    ) -> Result<()> {
+        let ok = mode.with_raw(|mode| unsafe {
+            ffi::network_connection::sc_network_connection_unschedule_from_run_loop(
+                self.inner.raw.as_ptr(),
+                run_loop.as_ptr(),
+                mode,
+            )
+        });
+        bridge::bool_result("sc_network_connection_unschedule_from_run_loop", ok)
+    }
+
     /// Wraps `SCNetworkConnectionScheduleWithRunLoopCurrent`.
     pub fn schedule_with_run_loop_current(&self) -> Result<()> {
-        let ok = unsafe {
-            ffi::network_connection::sc_network_connection_schedule_with_run_loop_current(
-                self.raw.as_ptr(),
-            )
-        };
-        bridge::bool_result("sc_network_connection_schedule_with_run_loop_current", ok)
+        self.schedule_with_run_loop(&CFRunLoop::current(), RunLoopMode::Default)
     }
 
     /// Wraps `SCNetworkConnectionUnscheduleFromRunLoopCurrent`.
     pub fn unschedule_from_run_loop_current(&self) -> Result<()> {
+        self.unschedule_from_run_loop(&CFRunLoop::current(), RunLoopMode::Default)
+    }
+
+    pub fn set_dispatch_queue(&self, queue: &DispatchQueue) -> Result<()> {
         let ok = unsafe {
-            ffi::network_connection::sc_network_connection_unschedule_from_run_loop_current(
-                self.raw.as_ptr(),
+            ffi::network_connection::sc_network_connection_set_dispatch_queue(
+                self.inner.raw.as_ptr(),
+                queue.as_ptr().cast_mut(),
             )
         };
-        bridge::bool_result("sc_network_connection_unschedule_from_run_loop_current", ok)
+        bridge::bool_result("sc_network_connection_set_dispatch_queue", ok)
     }
 
     /// Wraps `SCNetworkConnectionSetDispatchQueueGlobal`.
     pub fn set_dispatch_queue_global(&self) -> Result<()> {
         let ok = unsafe {
             ffi::network_connection::sc_network_connection_set_dispatch_queue_global(
-                self.raw.as_ptr(),
+                self.inner.raw.as_ptr(),
             )
         };
         bridge::bool_result("sc_network_connection_set_dispatch_queue_global", ok)
@@ -339,8 +386,42 @@ impl NetworkConnection {
     /// Wraps `SCNetworkConnectionClearDispatchQueue`.
     pub fn clear_dispatch_queue(&self) -> Result<()> {
         let ok = unsafe {
-            ffi::network_connection::sc_network_connection_clear_dispatch_queue(self.raw.as_ptr())
+            ffi::network_connection::sc_network_connection_clear_dispatch_queue(
+                self.inner.raw.as_ptr(),
+            )
         };
         bridge::bool_result("sc_network_connection_clear_dispatch_queue", ok)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use apple_cf::cf::CFRunLoop;
+
+    use super::NetworkConnection;
+    use crate::{bridge::test_support::run_loop_mode_is_empty, RunLoopMode};
+
+    #[test]
+    fn dropping_a_connection_unschedules_it_and_drops_the_callback() {
+        let witness = Arc::new(());
+        let captured = Arc::clone(&witness);
+        let connection = NetworkConnection::with_service_id_and_callback(
+            "00000000-0000-0000-0000-000000000000",
+            move |_| {
+                let _ = &captured;
+            },
+        )
+        .expect("connection");
+        let mode = "systemconfiguration-rs.unit-connection-mode";
+        connection
+            .schedule_with_run_loop(&CFRunLoop::current(), RunLoopMode::Named(mode))
+            .expect("schedule");
+        assert!(!run_loop_mode_is_empty(mode));
+
+        drop(connection);
+        assert!(run_loop_mode_is_empty(mode));
+        assert_eq!(Arc::strong_count(&witness), 1);
     }
 }

@@ -2,25 +2,38 @@ import Foundation
 import SystemConfiguration
 import SystemConfiguration.SCDynamicStoreCopyDHCPInfo
 
-final class DynamicStoreCallbackBox {
+final class DynamicStoreCallbackBox: RustCallbackContext {
     let callback: RustDynamicStoreCallback
-    let info: UnsafeMutableRawPointer?
 
-    init(callback: @escaping RustDynamicStoreCallback, info: UnsafeMutableRawPointer?) {
+    init(
+        callback: @escaping RustDynamicStoreCallback,
+        info: UnsafeMutableRawPointer?,
+        retainInfo: RustContextCallback?,
+        releaseInfo: RustContextCallback?
+    ) {
         self.callback = callback
-        self.info = info
+        super.init(info: info, retainInfo: retainInfo, releaseInfo: releaseInfo)
     }
 }
 
 final class DynamicStoreBox {
     let value: SCDynamicStore
-    var callbackBox: DynamicStoreCallbackBox?
     var dispatchQueue: DispatchQueue?
+    var runLoopSources: [RunLoopSourceBox]
 
     init(_ value: SCDynamicStore) {
         self.value = value
-        callbackBox = nil
         dispatchQueue = nil
+        runLoopSources = []
+    }
+
+    deinit {
+        if dispatchQueue != nil {
+            SCDynamicStoreSetDispatchQueue(value, nil)
+        }
+        for source in runLoopSources {
+            source.invalidate()
+        }
     }
 }
 

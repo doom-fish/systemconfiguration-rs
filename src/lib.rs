@@ -32,12 +32,17 @@ mod network_services;
 mod network_sets;
 mod preferences;
 mod property_list;
+mod run_loop;
 mod schema;
 /// Wraps constants from `SCSchemaDefinitions.h`.
 pub mod schema_definitions;
 mod system_configuration;
 mod vlan_interface;
 
+pub use apple_cf::{
+    cf::CFRunLoop,
+    dispatch_queue::{DispatchQoS, DispatchQueue},
+};
 /// Re-exports the corresponding SystemConfiguration wrappers.
 pub use bond_interface::{BondInterface, BondStatus};
 /// Re-exports the corresponding SystemConfiguration wrappers.
@@ -71,6 +76,7 @@ pub use network_sets::NetworkSet;
 pub use preferences::{Preferences, PreferencesNotification};
 /// Re-exports the corresponding SystemConfiguration wrappers.
 pub use property_list::PropertyList;
+pub use run_loop::RunLoopMode;
 /// Re-exports the corresponding SystemConfiguration wrappers.
 pub use schema::{Schema, SchemaCatalog};
 /// Re-exports the corresponding SystemConfiguration wrappers.
@@ -97,7 +103,7 @@ pub mod prelude {
         NetworkConnectionStatus, NetworkConnectionUserPreferences, NetworkInterface,
         NetworkInterfaceMediaOptions, NetworkInterfaceMtuInfo, NetworkProtocol,
         NetworkReachability, NetworkService, NetworkSet, Preferences, PreferencesNotification,
-        PropertyList, Reachability, ReachabilityFlags, Result, Schema, SchemaCatalog,
+        PropertyList, Reachability, ReachabilityFlags, Result, RunLoopMode, Schema, SchemaCatalog,
         SystemConfiguration, SystemConfigurationError, SystemConfigurationLastError, VlanInterface,
     };
 }

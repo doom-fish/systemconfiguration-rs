@@ -1,6 +1,6 @@
 use std::ffi::{c_char, c_void};
 
-use super::core::Handle;
+use super::core::{ContextCallback, Handle};
 
 pub(crate) type PreferencesCallback =
     Option<unsafe extern "C" fn(notification_type: u32, info: *mut c_void)>;
@@ -28,9 +28,20 @@ unsafe extern "C" {
         raw: Handle,
         callback: PreferencesCallback,
         info: *mut c_void,
+        retain_info: ContextCallback,
+        release_info: ContextCallback,
     ) -> u8;
-    pub(crate) fn sc_preferences_schedule_with_run_loop_current(raw: Handle) -> u8;
-    pub(crate) fn sc_preferences_unschedule_from_run_loop_current(raw: Handle) -> u8;
+    pub(crate) fn sc_preferences_schedule_with_run_loop(
+        raw: Handle,
+        run_loop: Handle,
+        mode: Handle,
+    ) -> u8;
+    pub(crate) fn sc_preferences_unschedule_from_run_loop(
+        raw: Handle,
+        run_loop: Handle,
+        mode: Handle,
+    ) -> u8;
+    pub(crate) fn sc_preferences_set_dispatch_queue(raw: Handle, queue: Handle) -> u8;
     pub(crate) fn sc_preferences_set_dispatch_queue_global(raw: Handle) -> u8;
     pub(crate) fn sc_preferences_clear_dispatch_queue(raw: Handle) -> u8;
     pub(crate) fn sc_preferences_path_create_unique_child(

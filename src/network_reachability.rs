@@ -1,11 +1,9 @@
-use std::{
-    ffi::c_void,
-    net::SocketAddr,
-    panic::AssertUnwindSafe,
-    sync::{Arc, Mutex},
-};
+use std::{ffi::c_void, net::SocketAddr, panic::AssertUnwindSafe, sync::Mutex};
 
-use crate::{bridge, error::Result, ffi, SystemConfigurationError};
+use apple_cf::{cf::CFRunLoop, dispatch_queue::DispatchQueue};
+use doom_fish_utils::callback_context::CallbackContext;
+
+use crate::{bridge, error::Result, ffi, RunLoopMode, SystemConfigurationError};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 /// Wraps `SCNetworkReachabilityFlags`.
@@ -108,17 +106,12 @@ struct LocalCallbackState {
     callback: Box<dyn FnMut(ReachabilityFlags)>,
 }
 
-struct SendCallbackState {
-    callback: Box<dyn FnMut(ReachabilityFlags) + Send>,
-}
+type SendCallback = bridge::CallbackSlot<dyn FnMut(ReachabilityFlags) + Send>;
+type SendCallbackContext = CallbackContext<SendCallback>;
 
 enum RegisteredCallback {
-    Local {
-        _state: Box<LocalCallbackState>,
-    },
-    Send {
-        _state: Arc<Mutex<SendCallbackState>>,
-    },
+    Local { _state: Box<LocalCallbackState> },
+    Send { context: SendCallbackContext },
 }
 
 unsafe extern "C" fn reachability_callback_local(flags: u32, info: *mut c_void) {
@@ -134,16 +127,10 @@ unsafe extern "C" fn reachability_callback_local(flags: u32, info: *mut c_void) 
 }
 
 unsafe extern "C" fn reachability_callback_send(flags: u32, info: *mut c_void) {
-    if info.is_null() {
-        return;
-    }
-
-    let mutex = unsafe { &*info.cast::<Mutex<SendCallbackState>>() };
-    if let Ok(mut state) = mutex.lock() {
-        // Catch panics: unwinding across the Swift/C FFI boundary is UB.
-        let _ = std::panic::catch_unwind(AssertUnwindSafe(|| {
-            (state.callback)(ReachabilityFlags(flags));
-        }));
+    unsafe {
+        SendCallbackContext::with(info, "reachability_callback_send", |slot| {
+            bridge::with_callback(slot, |callback| callback(ReachabilityFlags(flags)));
+        });
     }
 }
 
@@ -151,8 +138,8 @@ unsafe extern "C" fn reachability_callback_send(flags: u32, info: *mut c_void) {
 pub struct Reachability {
     raw: bridge::OwnedHandle,
     callback: Option<RegisteredCallback>,
-    scheduled_with_current_run_loop: bool,
     dispatch_queue_active: bool,
+    foreign_run_loop_schedules: usize,
 }
 
 /// Alias for the `SCNetworkReachabilityRef` wrapper.
@@ -173,8 +160,8 @@ impl Reachability {
         Ok(Self {
             raw,
             callback: None,
-            scheduled_with_current_run_loop: false,
             dispatch_queue_active: false,
+            foreign_run_loop_schedules: 0,
         })
     }
 
@@ -191,8 +178,8 @@ impl Reachability {
         Ok(Self {
             raw,
             callback: None,
-            scheduled_with_current_run_loop: false,
             dispatch_queue_active: false,
+            foreign_run_loop_schedules: 0,
         })
     }
 
@@ -219,8 +206,8 @@ impl Reachability {
         Ok(Self {
             raw,
             callback: None,
-            scheduled_with_current_run_loop: false,
             dispatch_queue_active: false,
+            foreign_run_loop_schedules: 0,
         })
     }
 
@@ -239,19 +226,22 @@ impl Reachability {
     where
         F: FnMut(ReachabilityFlags) + 'static,
     {
-        if self.dispatch_queue_active {
+        if self.dispatch_queue_active || self.foreign_run_loop_schedules > 0 {
             return Err(SystemConfigurationError::null(
                 "sc_reachability_set_callback",
-                "dispatch queues require callbacks registered via Reachability::set_callback_send; clear the dispatch queue first",
+                "callbacks that are not Send run only on this thread's run loop; use Reachability::set_callback_send, or clear the dispatch queue and other run loops first",
             ));
         }
 
         let mut callback = Box::new(LocalCallbackState {
             callback: Box::new(callback),
         });
+        let info = std::ptr::from_mut(&mut *callback).cast::<c_void>();
         self.set_registered_callback(
             Some(reachability_callback_local),
-            std::ptr::from_mut(&mut *callback).cast::<c_void>(),
+            info,
+            None,
+            None,
             Some(RegisteredCallback::Local { _state: callback }),
         )
     }
@@ -261,13 +251,14 @@ impl Reachability {
     where
         F: FnMut(ReachabilityFlags) + Send + 'static,
     {
-        let callback = Arc::new(Mutex::new(SendCallbackState {
-            callback: Box::new(callback),
-        }));
+        let context = SendCallbackContext::new(Mutex::new(Some(Box::new(callback))));
+        let info = context.as_ptr();
         self.set_registered_callback(
             Some(reachability_callback_send),
-            Arc::as_ptr(&callback).cast_mut().cast::<c_void>(),
-            Some(RegisteredCallback::Send { _state: callback }),
+            info,
+            Some(SendCallbackContext::RETAIN),
+            Some(SendCallbackContext::RELEASE),
+            Some(RegisteredCallback::Send { context }),
         )
     }
 
@@ -276,30 +267,80 @@ impl Reachability {
         if self.dispatch_queue_active {
             self.clear_dispatch_queue()?;
         }
-        self.set_registered_callback(None, std::ptr::null_mut(), None)
+        self.set_registered_callback(None, std::ptr::null_mut(), None, None, None)
+    }
+
+    pub fn schedule_with_run_loop(
+        &mut self,
+        run_loop: &CFRunLoop,
+        mode: RunLoopMode<'_>,
+    ) -> Result<()> {
+        let foreign = *run_loop != CFRunLoop::current();
+        if foreign && matches!(self.callback, Some(RegisteredCallback::Local { .. })) {
+            return Err(SystemConfigurationError::null(
+                "sc_reachability_schedule_with_run_loop",
+                "callbacks registered with Reachability::set_callback run only on this thread's run loop; use Reachability::set_callback_send",
+            ));
+        }
+        let ok = mode.with_raw(|mode| unsafe {
+            ffi::network_reachability::sc_reachability_schedule_with_run_loop(
+                self.raw.as_ptr(),
+                run_loop.as_ptr(),
+                mode,
+            )
+        });
+        bridge::bool_result("sc_reachability_schedule_with_run_loop", ok)?;
+        if foreign {
+            self.foreign_run_loop_schedules += 1;
+        }
+        Ok(())
+    }
+
+    pub fn unschedule_from_run_loop(
+        &mut self,
+        run_loop: &CFRunLoop,
+        mode: RunLoopMode<'_>,
+    ) -> Result<()> {
+        let ok = mode.with_raw(|mode| unsafe {
+            ffi::network_reachability::sc_reachability_unschedule_from_run_loop(
+                self.raw.as_ptr(),
+                run_loop.as_ptr(),
+                mode,
+            )
+        });
+        bridge::bool_result("sc_reachability_unschedule_from_run_loop", ok)?;
+        if *run_loop != CFRunLoop::current() {
+            self.foreign_run_loop_schedules = self.foreign_run_loop_schedules.saturating_sub(1);
+        }
+        Ok(())
     }
 
     /// Wraps `SCReachabilityScheduleWithRunLoopCurrent`.
     pub fn schedule_with_run_loop_current(&mut self) -> Result<()> {
-        let ok = unsafe {
-            ffi::network_reachability::sc_reachability_schedule_with_run_loop_current(
-                self.raw.as_ptr(),
-            )
-        };
-        bridge::bool_result("sc_reachability_schedule_with_run_loop_current", ok)?;
-        self.scheduled_with_current_run_loop = true;
-        Ok(())
+        self.schedule_with_run_loop(&CFRunLoop::current(), RunLoopMode::Default)
     }
 
     /// Wraps `SCReachabilityUnscheduleFromRunLoopCurrent`.
     pub fn unschedule_from_run_loop_current(&mut self) -> Result<()> {
+        self.unschedule_from_run_loop(&CFRunLoop::current(), RunLoopMode::Default)
+    }
+
+    pub fn set_dispatch_queue(&mut self, queue: &DispatchQueue) -> Result<()> {
+        if matches!(self.callback, Some(RegisteredCallback::Local { .. })) {
+            return Err(SystemConfigurationError::null(
+                "sc_reachability_set_dispatch_queue",
+                "dispatch queues require callbacks registered via Reachability::set_callback_send",
+            ));
+        }
+
         let ok = unsafe {
-            ffi::network_reachability::sc_reachability_unschedule_from_run_loop_current(
+            ffi::network_reachability::sc_reachability_set_dispatch_queue(
                 self.raw.as_ptr(),
+                queue.as_ptr().cast_mut(),
             )
         };
-        bridge::bool_result("sc_reachability_unschedule_from_run_loop_current", ok)?;
-        self.scheduled_with_current_run_loop = false;
+        bridge::bool_result("sc_reachability_set_dispatch_queue", ok)?;
+        self.dispatch_queue_active = true;
         Ok(())
     }
 
@@ -334,6 +375,8 @@ impl Reachability {
         &mut self,
         callback: ffi::network_reachability::ReachabilityCallback,
         info: *mut c_void,
+        retain_info: ffi::core::ContextCallback,
+        release_info: ffi::core::ContextCallback,
         registered: Option<RegisteredCallback>,
     ) -> Result<()> {
         let ok = unsafe {
@@ -341,36 +384,24 @@ impl Reachability {
                 self.raw.as_ptr(),
                 callback,
                 info,
+                retain_info,
+                release_info,
             )
         };
         bridge::bool_result("sc_reachability_set_callback", ok)?;
-        self.callback = registered;
+        let previous = std::mem::replace(&mut self.callback, registered);
+        if let Some(RegisteredCallback::Send { context }) = &previous {
+            bridge::retire_callback(context);
+        }
+        drop(previous);
         Ok(())
     }
 }
 
 impl Drop for Reachability {
     fn drop(&mut self) {
-        if self.dispatch_queue_active {
-            let _ = unsafe {
-                ffi::network_reachability::sc_reachability_clear_dispatch_queue(self.raw.as_ptr())
-            };
-        }
-        if self.scheduled_with_current_run_loop {
-            let _ = unsafe {
-                ffi::network_reachability::sc_reachability_unschedule_from_run_loop_current(
-                    self.raw.as_ptr(),
-                )
-            };
-        }
-        if self.callback.is_some() {
-            let _ = unsafe {
-                ffi::network_reachability::sc_reachability_set_callback(
-                    self.raw.as_ptr(),
-                    None,
-                    std::ptr::null_mut(),
-                )
-            };
+        if let Some(RegisteredCallback::Send { context }) = &self.callback {
+            bridge::retire_callback(context);
         }
     }
 }
@@ -413,5 +444,68 @@ fn socket_addr_to_bytes(address: SocketAddr) -> Vec<u8> {
                 .to_vec()
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use apple_cf::{
+        cf::CFRunLoop,
+        dispatch_queue::{DispatchQoS, DispatchQueue},
+    };
+
+    use super::{Reachability, RegisteredCallback};
+    use crate::{
+        bridge::test_support::{run_loop_mode_is_empty, wait_for, InFlightCall},
+        RunLoopMode,
+    };
+
+    #[test]
+    fn dropping_a_reachability_unschedules_it_from_every_run_loop_mode() {
+        let witness = Arc::new(());
+        let captured = Arc::clone(&witness);
+        let mut reachability = Reachability::with_name("localhost").expect("reachability");
+        reachability
+            .set_callback_send(move |_| {
+                let _ = &captured;
+            })
+            .expect("callback");
+        let mode = "systemconfiguration-rs.unit-reach-mode";
+        reachability
+            .schedule_with_run_loop(&CFRunLoop::current(), RunLoopMode::Named(mode))
+            .expect("schedule");
+        assert!(!run_loop_mode_is_empty(mode));
+
+        drop(reachability);
+        assert!(run_loop_mode_is_empty(mode));
+        assert!(wait_for(|| Arc::strong_count(&witness) == 1));
+    }
+
+    #[test]
+    fn dropping_a_reachability_on_a_queue_waits_for_sc_to_release_the_callback() {
+        let witness = Arc::new(());
+        let captured = Arc::clone(&witness);
+        let mut reachability = Reachability::with_name("localhost").expect("reachability");
+        reachability
+            .set_callback_send(move |_| {
+                let _ = &captured;
+            })
+            .expect("callback");
+        let queue = DispatchQueue::new("systemconfiguration-rs.unit-reach", DispatchQoS::Utility);
+        reachability
+            .set_dispatch_queue(&queue)
+            .expect("dispatch queue");
+
+        let Some(RegisteredCallback::Send { context }) = &reachability.callback else {
+            panic!("expected a Send callback");
+        };
+        let call = InFlightCall::hold(context);
+        drop(reachability);
+        assert_eq!(Arc::strong_count(&witness), 2);
+
+        call.finish();
+        assert!(wait_for(|| Arc::strong_count(&witness) == 1));
     }
 }

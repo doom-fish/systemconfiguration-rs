@@ -1,13 +1,36 @@
 use std::{
     ffi::{c_char, c_void, CString},
     ptr::NonNull,
+    sync::{Mutex, PoisonError, TryLockError},
 };
 
+use doom_fish_utils::callback_context::CallbackContext;
 use serde::de::DeserializeOwned;
 
 use crate::{error::Result, ffi, SystemConfigurationError};
 
 pub(crate) type RawHandle = *mut c_void;
+
+pub(crate) type CallbackSlot<F> = Mutex<Option<Box<F>>>;
+
+pub(crate) fn with_callback<F: ?Sized>(slot: &CallbackSlot<F>, call: impl FnOnce(&mut F)) {
+    let mut slot = slot.lock().unwrap_or_else(PoisonError::into_inner);
+    if let Some(callback) = slot.as_mut() {
+        call(callback);
+    }
+}
+
+pub(crate) fn retire_callback<F: ?Sized + Send + 'static>(
+    context: &CallbackContext<CallbackSlot<F>>,
+) {
+    context.deactivate();
+    let callback = match context.get().try_lock() {
+        Ok(mut slot) => slot.take(),
+        Err(TryLockError::Poisoned(poisoned)) => poisoned.into_inner().take(),
+        Err(TryLockError::WouldBlock) => None,
+    };
+    drop(callback);
+}
 
 #[derive(Debug)]
 pub(crate) struct OwnedHandle(NonNull<c_void>);
@@ -201,4 +224,81 @@ where
     serde_json::from_str(&json).map_err(|error| {
         SystemConfigurationError::new(function, 0, format!("failed to parse bridge JSON: {error}"))
     })
+}
+
+#[cfg(test)]
+pub(crate) mod test_support {
+    use std::{
+        ffi::c_void,
+        sync::mpsc,
+        thread,
+        time::{Duration, Instant},
+    };
+
+    use apple_cf::cf::CFRunLoop;
+    use doom_fish_utils::callback_context::CallbackContext;
+
+    use super::CallbackSlot;
+
+    pub(crate) fn wait_for(mut condition: impl FnMut() -> bool) -> bool {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while Instant::now() < deadline {
+            if condition() {
+                return true;
+            }
+            let _ = CFRunLoop::run_in_default_mode(Duration::from_millis(20), false);
+        }
+        condition()
+    }
+
+    pub(crate) fn run_loop_mode_is_empty(mode: &str) -> bool {
+        let mode = apple_cf::cf::CFString::new(mode);
+        let result = unsafe { apple_cf::raw::CFRunLoopRunInMode(mode.as_ptr().cast(), 0.01, 1) };
+        u32::try_from(result).is_ok_and(|result| result == apple_cf::raw::kCFRunLoopRunFinished)
+    }
+
+    pub(crate) struct InFlightCall {
+        release: mpsc::Sender<()>,
+        handle: thread::JoinHandle<bool>,
+        raw: usize,
+        release_context: unsafe extern "C" fn(*mut c_void),
+    }
+
+    impl InFlightCall {
+        pub(crate) fn hold<F: ?Sized + Send + 'static>(
+            context: &CallbackContext<CallbackSlot<F>>,
+        ) -> Self {
+            let raw = context.retained_ptr() as usize;
+            let (locked, locked_rx) = mpsc::channel();
+            let (release, release_rx) = mpsc::channel::<()>();
+            let handle = thread::spawn(move || {
+                let entered = unsafe {
+                    CallbackContext::<CallbackSlot<F>>::with(
+                        raw as *mut c_void,
+                        "in_flight_call",
+                        |slot| {
+                            let guard = slot.lock();
+                            let _ = locked.send(());
+                            let _ = release_rx.recv();
+                            drop(guard);
+                        },
+                    )
+                };
+                entered.is_some()
+            });
+            locked_rx.recv().expect("in-flight call never started");
+            Self {
+                release,
+                handle,
+                raw,
+                release_context: CallbackContext::<CallbackSlot<F>>::RELEASE,
+            }
+        }
+
+        pub(crate) fn finish(self) {
+            self.release.send(()).expect("release in-flight call");
+            assert!(self.handle.join().expect("join in-flight call"));
+            unsafe { (self.release_context)(self.raw as *mut c_void) };
+        }
+    }
 }

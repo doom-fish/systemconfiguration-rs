@@ -1,45 +1,55 @@
-use std::{
-    ffi::c_void,
-    panic::AssertUnwindSafe,
-    sync::{Arc, Mutex},
-};
+use std::{ffi::c_void, rc::Rc, sync::Mutex};
+
+use apple_cf::{cf::CFRunLoop, dispatch_queue::DispatchQueue};
+use doom_fish_utils::callback_context::CallbackContext;
 
 use crate::{
     bridge::{self, CStringArray},
     error::Result,
-    ffi, PropertyList, SystemConfigurationError,
+    ffi, PropertyList, RunLoopMode, SystemConfigurationError,
 };
 
-struct CallbackState {
-    callback: Box<dyn FnMut(Vec<String>) + Send>,
-}
+type DynamicStoreCallback = bridge::CallbackSlot<dyn FnMut(Vec<String>) + Send>;
+type DynamicStoreCallbackContext = CallbackContext<DynamicStoreCallback>;
 
 unsafe extern "C" fn dynamic_store_callback(
     changed_keys_raw: bridge::RawHandle,
     info: *mut c_void,
 ) {
-    if info.is_null() {
-        return;
-    }
-
-    // SAFETY: `info` is `Arc::as_ptr(state).cast_mut().cast::<c_void>()` kept
-    // alive by `DynamicStore::_callback` for the entire lifetime of the store.
-    // This callback is only invoked while the store is alive.
-    let mutex = unsafe { &*info.cast::<Mutex<CallbackState>>() };
-    if let Ok(mut state) = mutex.lock() {
+    doom_fish_utils::panic_safe::catch_user_panic("dynamic_store_callback", || {
         let keys = bridge::take_string_array(changed_keys_raw);
-        // Catch panics: unwinding across the Swift/C FFI boundary is UB.
-        let _ = std::panic::catch_unwind(AssertUnwindSafe(|| {
-            (state.callback)(keys);
-        }));
+        unsafe {
+            DynamicStoreCallbackContext::with(info, "dynamic_store_callback", |slot| {
+                bridge::with_callback(slot, |callback| callback(keys));
+            });
+        }
+    });
+}
+
+fn callback_context<F>(callback: F) -> DynamicStoreCallbackContext
+where
+    F: FnMut(Vec<String>) + Send + 'static,
+{
+    DynamicStoreCallbackContext::new(Mutex::new(Some(Box::new(callback))))
+}
+
+struct DynamicStoreInner {
+    raw: bridge::OwnedHandle,
+    callback: Option<DynamicStoreCallbackContext>,
+}
+
+impl Drop for DynamicStoreInner {
+    fn drop(&mut self) {
+        if let Some(callback) = &self.callback {
+            bridge::retire_callback(callback);
+        }
     }
 }
 
 #[derive(Clone)]
 /// Wraps `SCDynamicStoreRef`.
 pub struct DynamicStore {
-    raw: bridge::OwnedHandle,
-    _callback: Option<Arc<Mutex<CallbackState>>>,
+    inner: Rc<DynamicStoreInner>,
 }
 
 impl std::fmt::Debug for DynamicStore {
@@ -88,10 +98,7 @@ impl DynamicStore {
     where
         F: FnMut(Vec<String>) + Send + 'static,
     {
-        let callback = Arc::new(Mutex::new(CallbackState {
-            callback: Box::new(callback),
-        }));
-        Self::create(name, None, false, Some(callback))
+        Self::create(name, None, false, Some(callback_context(callback)))
     }
 
     /// `options` must encode a dictionary accepted by `SCDynamicStoreCreateWithOptions`.
@@ -104,10 +111,7 @@ impl DynamicStore {
     where
         F: FnMut(Vec<String>) + Send + 'static,
     {
-        let callback = Arc::new(Mutex::new(CallbackState {
-            callback: Box::new(callback),
-        }));
-        Self::create(name, Some(options), false, Some(callback))
+        Self::create(name, Some(options), false, Some(callback_context(callback)))
     }
 
     /// Wraps `SCDynamicStoreCreate` with session-key notifications and an `SCDynamicStoreCallBack`.
@@ -115,17 +119,14 @@ impl DynamicStore {
     where
         F: FnMut(Vec<String>) + Send + 'static,
     {
-        let callback = Arc::new(Mutex::new(CallbackState {
-            callback: Box::new(callback),
-        }));
-        Self::create(name, None, true, Some(callback))
+        Self::create(name, None, true, Some(callback_context(callback)))
     }
 
     fn create(
         name: &str,
         options: Option<&PropertyList>,
         use_session_keys: bool,
-        callback: Option<Arc<Mutex<CallbackState>>>,
+        callback: Option<DynamicStoreCallbackContext>,
     ) -> Result<Self> {
         let function = match (options.is_some(), callback.is_some()) {
             (false, false) => "sc_dynamic_store_create",
@@ -140,30 +141,33 @@ impl DynamicStore {
                     name.as_ptr(),
                     options.as_ptr(),
                 ),
-                (Some(options), Some(state)) => {
+                (Some(options), Some(context)) => {
                     ffi::dynamic_store::sc_dynamic_store_create_with_options_and_callback(
                         name.as_ptr(),
                         options.as_ptr(),
                         Some(dynamic_store_callback),
-                        Arc::as_ptr(state).cast_mut().cast::<c_void>(),
+                        context.as_ptr(),
+                        Some(DynamicStoreCallbackContext::RETAIN),
+                        Some(DynamicStoreCallbackContext::RELEASE),
                     )
                 }
                 (None, None) => ffi::dynamic_store::sc_dynamic_store_create(
                     name.as_ptr(),
                     u8::from(use_session_keys),
                 ),
-                (None, Some(state)) => ffi::dynamic_store::sc_dynamic_store_create_with_callback(
+                (None, Some(context)) => ffi::dynamic_store::sc_dynamic_store_create_with_callback(
                     name.as_ptr(),
                     u8::from(use_session_keys),
                     Some(dynamic_store_callback),
-                    Arc::as_ptr(state).cast_mut().cast::<c_void>(),
+                    context.as_ptr(),
+                    Some(DynamicStoreCallbackContext::RETAIN),
+                    Some(DynamicStoreCallbackContext::RELEASE),
                 ),
             }
         };
         let raw = bridge::owned_handle_or_last(function, raw)?;
         Ok(Self {
-            raw,
-            _callback: callback,
+            inner: Rc::new(DynamicStoreInner { raw, callback }),
         })
     }
 
@@ -171,7 +175,7 @@ impl DynamicStore {
     pub fn copy_value(&self, key: &str) -> Result<Option<PropertyList>> {
         let key = bridge::cstring(key, "sc_dynamic_store_copy_value")?;
         let raw = unsafe {
-            ffi::dynamic_store::sc_dynamic_store_copy_value(self.raw.as_ptr(), key.as_ptr())
+            ffi::dynamic_store::sc_dynamic_store_copy_value(self.inner.raw.as_ptr(), key.as_ptr())
         };
         Ok(unsafe { bridge::OwnedHandle::from_raw(raw) }.map(PropertyList::from_owned_handle))
     }
@@ -186,7 +190,7 @@ impl DynamicStore {
         let patterns = CStringArray::new(patterns, "sc_dynamic_store_copy_multiple")?;
         let raw = unsafe {
             ffi::dynamic_store::sc_dynamic_store_copy_multiple(
-                self.raw.as_ptr(),
+                self.inner.raw.as_ptr(),
                 keys.as_ptr(),
                 keys.count(),
                 patterns.as_ptr(),
@@ -201,7 +205,7 @@ impl DynamicStore {
         let key = bridge::cstring(key, "sc_dynamic_store_add_value")?;
         let ok = unsafe {
             ffi::dynamic_store::sc_dynamic_store_add_value(
-                self.raw.as_ptr(),
+                self.inner.raw.as_ptr(),
                 key.as_ptr(),
                 value.as_ptr(),
             )
@@ -214,7 +218,7 @@ impl DynamicStore {
         let key = bridge::cstring(key, "sc_dynamic_store_add_temporary_value")?;
         let ok = unsafe {
             ffi::dynamic_store::sc_dynamic_store_add_temporary_value(
-                self.raw.as_ptr(),
+                self.inner.raw.as_ptr(),
                 key.as_ptr(),
                 value.as_ptr(),
             )
@@ -227,7 +231,7 @@ impl DynamicStore {
         let key = bridge::cstring(key, "sc_dynamic_store_set_value")?;
         let ok = unsafe {
             ffi::dynamic_store::sc_dynamic_store_set_value(
-                self.raw.as_ptr(),
+                self.inner.raw.as_ptr(),
                 key.as_ptr(),
                 value.as_ptr(),
             )
@@ -250,7 +254,7 @@ impl DynamicStore {
         let keys_to_notify = CStringArray::new(keys_to_notify, "sc_dynamic_store_set_multiple")?;
         let ok = unsafe {
             ffi::dynamic_store::sc_dynamic_store_set_multiple(
-                self.raw.as_ptr(),
+                self.inner.raw.as_ptr(),
                 keys_to_set.map_or(std::ptr::null_mut(), PropertyList::as_ptr),
                 keys_to_remove.as_ptr(),
                 keys_to_remove.count(),
@@ -265,7 +269,7 @@ impl DynamicStore {
     pub fn remove_value(&self, key: &str) -> Result<()> {
         let key = bridge::cstring(key, "sc_dynamic_store_remove_value")?;
         let ok = unsafe {
-            ffi::dynamic_store::sc_dynamic_store_remove_value(self.raw.as_ptr(), key.as_ptr())
+            ffi::dynamic_store::sc_dynamic_store_remove_value(self.inner.raw.as_ptr(), key.as_ptr())
         };
         bridge::bool_result("sc_dynamic_store_remove_value", ok)
     }
@@ -274,7 +278,7 @@ impl DynamicStore {
     pub fn notify_value(&self, key: &str) -> Result<()> {
         let key = bridge::cstring(key, "sc_dynamic_store_notify_value")?;
         let ok = unsafe {
-            ffi::dynamic_store::sc_dynamic_store_notify_value(self.raw.as_ptr(), key.as_ptr())
+            ffi::dynamic_store::sc_dynamic_store_notify_value(self.inner.raw.as_ptr(), key.as_ptr())
         };
         bridge::bool_result("sc_dynamic_store_notify_value", ok)
     }
@@ -283,7 +287,10 @@ impl DynamicStore {
     pub fn copy_key_list(&self, pattern: &str) -> Result<Vec<String>> {
         let pattern = bridge::cstring(pattern, "sc_dynamic_store_copy_key_list")?;
         let raw = unsafe {
-            ffi::dynamic_store::sc_dynamic_store_copy_key_list(self.raw.as_ptr(), pattern.as_ptr())
+            ffi::dynamic_store::sc_dynamic_store_copy_key_list(
+                self.inner.raw.as_ptr(),
+                pattern.as_ptr(),
+            )
         };
         Ok(bridge::take_string_array(raw))
     }
@@ -298,7 +305,7 @@ impl DynamicStore {
         let patterns = CStringArray::new(patterns, "sc_dynamic_store_set_notification_keys")?;
         let ok = unsafe {
             ffi::dynamic_store::sc_dynamic_store_set_notification_keys(
-                self.raw.as_ptr(),
+                self.inner.raw.as_ptr(),
                 keys.as_ptr(),
                 keys.count(),
                 patterns.as_ptr(),
@@ -311,58 +318,74 @@ impl DynamicStore {
     /// Wraps `SCDynamicStoreCreateRunLoopSource`.
     pub fn create_run_loop_source(&self, order: isize) -> Result<DynamicStoreRunLoopSource> {
         let raw = unsafe {
-            ffi::dynamic_store::sc_dynamic_store_create_run_loop_source(self.raw.as_ptr(), order)
+            ffi::dynamic_store::sc_dynamic_store_create_run_loop_source(
+                self.inner.raw.as_ptr(),
+                order,
+            )
         };
         let raw = bridge::owned_handle_or_last("sc_dynamic_store_create_run_loop_source", raw)?;
         Ok(DynamicStoreRunLoopSource { raw })
     }
 
+    pub fn set_dispatch_queue(&self, queue: &DispatchQueue) -> Result<()> {
+        let ok = unsafe {
+            ffi::dynamic_store::sc_dynamic_store_set_dispatch_queue(
+                self.inner.raw.as_ptr(),
+                queue.as_ptr().cast_mut(),
+            )
+        };
+        bridge::bool_result("sc_dynamic_store_set_dispatch_queue", ok)
+    }
+
     /// Wraps `SCDynamicStoreSetDispatchQueueGlobal`.
     pub fn set_dispatch_queue_global(&self) -> Result<()> {
         let ok = unsafe {
-            ffi::dynamic_store::sc_dynamic_store_set_dispatch_queue_global(self.raw.as_ptr())
+            ffi::dynamic_store::sc_dynamic_store_set_dispatch_queue_global(self.inner.raw.as_ptr())
         };
         bridge::bool_result("sc_dynamic_store_set_dispatch_queue_global", ok)
     }
 
     /// Wraps `SCDynamicStoreClearDispatchQueue`.
     pub fn clear_dispatch_queue(&self) -> Result<()> {
-        let ok =
-            unsafe { ffi::dynamic_store::sc_dynamic_store_clear_dispatch_queue(self.raw.as_ptr()) };
+        let ok = unsafe {
+            ffi::dynamic_store::sc_dynamic_store_clear_dispatch_queue(self.inner.raw.as_ptr())
+        };
         bridge::bool_result("sc_dynamic_store_clear_dispatch_queue", ok)
     }
 
     /// Wraps `SCDynamicStoreCopyNotifiedKeys`.
     pub fn copy_notified_keys(&self) -> Vec<String> {
-        let raw =
-            unsafe { ffi::dynamic_store::sc_dynamic_store_copy_notified_keys(self.raw.as_ptr()) };
+        let raw = unsafe {
+            ffi::dynamic_store::sc_dynamic_store_copy_notified_keys(self.inner.raw.as_ptr())
+        };
         bridge::take_string_array(raw)
     }
 
     /// Wraps `SCDynamicStoreCopyComputerName`.
     pub fn computer_name(&self) -> Option<String> {
         bridge::take_optional_string(unsafe {
-            ffi::dynamic_store::sc_dynamic_store_copy_computer_name(self.raw.as_ptr())
+            ffi::dynamic_store::sc_dynamic_store_copy_computer_name(self.inner.raw.as_ptr())
         })
     }
 
     /// Wraps `SCDynamicStoreCopyLocalHostName`.
     pub fn local_host_name(&self) -> Option<String> {
         bridge::take_optional_string(unsafe {
-            ffi::dynamic_store::sc_dynamic_store_copy_local_host_name(self.raw.as_ptr())
+            ffi::dynamic_store::sc_dynamic_store_copy_local_host_name(self.inner.raw.as_ptr())
         })
     }
 
     /// Wraps `SCDynamicStoreCopyLocation`.
     pub fn location(&self) -> Option<String> {
         bridge::take_optional_string(unsafe {
-            ffi::dynamic_store::sc_dynamic_store_copy_location(self.raw.as_ptr())
+            ffi::dynamic_store::sc_dynamic_store_copy_location(self.inner.raw.as_ptr())
         })
     }
 
     /// Wraps `SCDynamicStoreCopyProxies`.
     pub fn proxies(&self) -> Option<PropertyList> {
-        let raw = unsafe { ffi::dynamic_store::sc_dynamic_store_copy_proxies(self.raw.as_ptr()) };
+        let raw =
+            unsafe { ffi::dynamic_store::sc_dynamic_store_copy_proxies(self.inner.raw.as_ptr()) };
         unsafe { bridge::OwnedHandle::from_raw(raw) }.map(PropertyList::from_owned_handle)
     }
 
@@ -371,7 +394,7 @@ impl DynamicStore {
         let service_id = bridge::optional_cstring(service_id, "sc_dynamic_store_copy_dhcp_info")?;
         let raw = unsafe {
             ffi::dynamic_store::sc_dynamic_store_copy_dhcp_info(
-                self.raw.as_ptr(),
+                self.inner.raw.as_ptr(),
                 service_id
                     .as_ref()
                     .map_or(std::ptr::null(), |value| value.as_ptr()),
@@ -594,21 +617,146 @@ impl DynamicStore {
 }
 
 impl DynamicStoreRunLoopSource {
+    pub fn is_valid(&self) -> bool {
+        unsafe { ffi::dynamic_store::sc_run_loop_source_is_valid(self.raw.as_ptr()) != 0 }
+    }
+
+    pub fn schedule(&self, run_loop: &CFRunLoop, mode: RunLoopMode<'_>) -> Result<()> {
+        if !self.is_valid() {
+            return Err(SystemConfigurationError::null(
+                "sc_run_loop_source_schedule",
+                "the run-loop source was invalidated when its DynamicStore was dropped",
+            ));
+        }
+        let ok = mode.with_raw(|mode| unsafe {
+            ffi::dynamic_store::sc_run_loop_source_schedule(
+                self.raw.as_ptr(),
+                run_loop.as_ptr(),
+                mode,
+            )
+        });
+        bridge::bool_result("sc_run_loop_source_schedule", ok)
+    }
+
+    pub fn unschedule(&self, run_loop: &CFRunLoop, mode: RunLoopMode<'_>) -> Result<()> {
+        let ok = mode.with_raw(|mode| unsafe {
+            ffi::dynamic_store::sc_run_loop_source_unschedule(
+                self.raw.as_ptr(),
+                run_loop.as_ptr(),
+                mode,
+            )
+        });
+        bridge::bool_result("sc_run_loop_source_unschedule", ok)
+    }
+
     /// Wraps `SCRunLoopSourceScheduleCurrentDefaultMode`.
     pub fn schedule_current_default_mode(&self) -> Result<()> {
-        let ok = unsafe {
-            ffi::dynamic_store::sc_run_loop_source_schedule_current_default_mode(self.raw.as_ptr())
-        };
-        bridge::bool_result("sc_run_loop_source_schedule_current_default_mode", ok)
+        self.schedule(&CFRunLoop::current(), RunLoopMode::Default)
     }
 
     /// Wraps `SCRunLoopSourceUnscheduleCurrentDefaultMode`.
     pub fn unschedule_current_default_mode(&self) -> Result<()> {
-        let ok = unsafe {
-            ffi::dynamic_store::sc_run_loop_source_unschedule_current_default_mode(
-                self.raw.as_ptr(),
-            )
-        };
-        bridge::bool_result("sc_run_loop_source_unschedule_current_default_mode", ok)
+        self.unschedule(&CFRunLoop::current(), RunLoopMode::Default)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use apple_cf::{
+        cf::CFRunLoop,
+        dispatch_queue::{DispatchQoS, DispatchQueue},
+    };
+
+    use super::DynamicStore;
+    use crate::{
+        bridge::test_support::{run_loop_mode_is_empty, wait_for, InFlightCall},
+        RunLoopMode,
+    };
+
+    fn store_with_witness(name: &str) -> (DynamicStore, Arc<()>) {
+        let witness = Arc::new(());
+        let captured = Arc::clone(&witness);
+        let store = DynamicStore::new_with_callback(name, move |_| {
+            let _ = &captured;
+        })
+        .expect("dynamic store");
+        let key = DynamicStore::computer_name_key().expect("computer name key");
+        store
+            .set_notification_keys(&[key.as_str()], &[] as &[&str])
+            .expect("notification keys");
+        (store, witness)
+    }
+
+    fn hold(store: &DynamicStore) -> InFlightCall {
+        InFlightCall::hold(store.inner.callback.as_ref().expect("callback"))
+    }
+
+    #[test]
+    fn a_scheduled_store_keeps_its_callback_through_an_in_flight_call() {
+        let (store, witness) = store_with_witness("systemconfiguration-rs.unit-ds-run-loop");
+        let source = store.create_run_loop_source(0).expect("source");
+        let mode = "systemconfiguration-rs.unit-ds-mode";
+        source
+            .schedule(&CFRunLoop::current(), RunLoopMode::Common)
+            .expect("schedule common");
+        source
+            .schedule(&CFRunLoop::current(), RunLoopMode::Named(mode))
+            .expect("schedule named");
+        assert!(!run_loop_mode_is_empty(mode));
+
+        let call = hold(&store);
+        drop(store);
+        assert!(run_loop_mode_is_empty(mode));
+        drop(source);
+        assert_eq!(Arc::strong_count(&witness), 2);
+
+        call.finish();
+        assert!(wait_for(|| Arc::strong_count(&witness) == 1));
+    }
+
+    #[test]
+    fn common_modes_include_the_default_mode() {
+        let (store, _witness) = store_with_witness("systemconfiguration-rs.unit-ds-common");
+        let source = store.create_run_loop_source(0).expect("source");
+        let run_loop = CFRunLoop::current();
+        assert!(run_loop_mode_is_empty("kCFRunLoopDefaultMode"));
+
+        source
+            .schedule(&run_loop, RunLoopMode::Common)
+            .expect("schedule common");
+        assert!(!run_loop_mode_is_empty("kCFRunLoopDefaultMode"));
+
+        source
+            .unschedule(&run_loop, RunLoopMode::Common)
+            .expect("unschedule common");
+        assert!(run_loop_mode_is_empty("kCFRunLoopDefaultMode"));
+    }
+
+    #[test]
+    fn an_unscheduled_source_does_not_leak_the_store() {
+        let (store, witness) = store_with_witness("systemconfiguration-rs.unit-ds-idle");
+        let source = store.create_run_loop_source(0).expect("source");
+
+        let call = hold(&store);
+        drop(store);
+        drop(source);
+        call.finish();
+        assert!(wait_for(|| Arc::strong_count(&witness) == 1));
+    }
+
+    #[test]
+    fn a_store_on_a_dispatch_queue_releases_its_callback_after_an_in_flight_call() {
+        let (store, witness) = store_with_witness("systemconfiguration-rs.unit-ds-queue");
+        let queue = DispatchQueue::new("systemconfiguration-rs.unit-ds", DispatchQoS::Utility);
+        store.set_dispatch_queue(&queue).expect("dispatch queue");
+
+        let call = hold(&store);
+        drop(store);
+        assert_eq!(Arc::strong_count(&witness), 2);
+
+        call.finish();
+        assert!(wait_for(|| Arc::strong_count(&witness) == 1));
     }
 }

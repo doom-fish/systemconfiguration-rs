@@ -2,6 +2,8 @@ use std::ffi::{c_char, c_void};
 
 pub(crate) type Handle = *mut c_void;
 
+pub(crate) type ContextCallback = Option<unsafe extern "C" fn(info: *mut c_void)>;
+
 unsafe extern "C" {
     pub(crate) fn sc_handle_retain(raw: Handle) -> Handle;
     pub(crate) fn sc_handle_release(raw: Handle);

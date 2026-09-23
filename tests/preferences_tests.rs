@@ -21,7 +21,7 @@ fn preferences_support_read_only_queries_and_paths() -> Result<(), Box<dyn std::
     let notifications = PreferencesNotification::COMMIT | PreferencesNotification::APPLY;
     assert!(notifications.contains(PreferencesNotification::COMMIT));
 
-    let mut callback_prefs = Preferences::new_with_callback(
+    let callback_prefs = Preferences::new_with_callback(
         "systemconfiguration-rs.preferences-callback-tests",
         None,
         |_| {},
