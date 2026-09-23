@@ -100,6 +100,37 @@ pub struct Preferences {
     inner: Rc<PreferencesInner>,
 }
 
+#[must_use = "dropping the guard unlocks the preferences"]
+pub struct PreferencesLock<'a> {
+    preferences: &'a Preferences,
+    locked: bool,
+}
+
+impl PreferencesLock<'_> {
+    /// Wraps `SCPreferencesUnlock`.
+    pub fn unlock(mut self) -> Result<()> {
+        self.locked = false;
+        let ok = unsafe { ffi::preferences::sc_preferences_unlock(self.preferences.as_ptr()) };
+        bridge::bool_result("sc_preferences_unlock", ok)
+    }
+}
+
+impl Drop for PreferencesLock<'_> {
+    fn drop(&mut self) {
+        if self.locked {
+            let _ = unsafe { ffi::preferences::sc_preferences_unlock(self.preferences.as_ptr()) };
+        }
+    }
+}
+
+impl std::fmt::Debug for PreferencesLock<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PreferencesLock")
+            .field("locked", &self.locked)
+            .finish_non_exhaustive()
+    }
+}
+
 impl std::fmt::Debug for Preferences {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Preferences").finish_non_exhaustive()
@@ -331,9 +362,13 @@ impl Preferences {
     }
 
     /// Wraps `SCPreferencesLock`.
-    pub fn lock(&self, wait: bool) -> Result<()> {
+    pub fn lock(&self, wait: bool) -> Result<PreferencesLock<'_>> {
         let ok = unsafe { ffi::preferences::sc_preferences_lock(self.as_ptr(), u8::from(wait)) };
-        bridge::bool_result("sc_preferences_lock", ok)
+        bridge::bool_result("sc_preferences_lock", ok)?;
+        Ok(PreferencesLock {
+            preferences: self,
+            locked: true,
+        })
     }
 
     /// Wraps `SCPreferencesCommitChanges`.
@@ -346,12 +381,6 @@ impl Preferences {
     pub fn apply_changes(&self) -> Result<()> {
         let ok = unsafe { ffi::preferences::sc_preferences_apply_changes(self.as_ptr()) };
         bridge::bool_result("sc_preferences_apply_changes", ok)
-    }
-
-    /// Wraps `SCPreferencesUnlock`.
-    pub fn unlock(&self) -> Result<()> {
-        let ok = unsafe { ffi::preferences::sc_preferences_unlock(self.as_ptr()) };
-        bridge::bool_result("sc_preferences_unlock", ok)
     }
 
     /// Wraps `SCPreferencesSynchronize`.

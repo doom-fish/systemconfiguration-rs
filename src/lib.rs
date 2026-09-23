@@ -73,7 +73,7 @@ pub use network_services::NetworkService;
 /// Re-exports the corresponding SystemConfiguration wrappers.
 pub use network_sets::NetworkSet;
 /// Re-exports the corresponding SystemConfiguration wrappers.
-pub use preferences::{Preferences, PreferencesNotification};
+pub use preferences::{Preferences, PreferencesLock, PreferencesNotification};
 /// Re-exports the corresponding SystemConfiguration wrappers.
 pub use property_list::PropertyList;
 pub use run_loop::RunLoopMode;
@@ -102,8 +102,9 @@ pub mod prelude {
         NetworkConnection, NetworkConnectionFlags, NetworkConnectionPppStatus,
         NetworkConnectionStatus, NetworkConnectionUserPreferences, NetworkInterface,
         NetworkInterfaceMediaOptions, NetworkInterfaceMtuInfo, NetworkProtocol,
-        NetworkReachability, NetworkService, NetworkSet, Preferences, PreferencesNotification,
-        PropertyList, Reachability, ReachabilityFlags, Result, RunLoopMode, Schema, SchemaCatalog,
-        SystemConfiguration, SystemConfigurationError, SystemConfigurationLastError, VlanInterface,
+        NetworkReachability, NetworkService, NetworkSet, Preferences, PreferencesLock,
+        PreferencesNotification, PropertyList, Reachability, ReachabilityFlags, Result,
+        RunLoopMode, Schema, SchemaCatalog, SystemConfiguration, SystemConfigurationError,
+        SystemConfigurationLastError, VlanInterface,
     };
 }

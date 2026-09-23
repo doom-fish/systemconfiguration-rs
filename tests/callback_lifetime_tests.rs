@@ -11,8 +11,8 @@ use std::{
 };
 
 use systemconfiguration::{
-    CFRunLoop, DispatchQoS, DispatchQueue, DynamicStore, NetworkConnection, Reachability,
-    RunLoopMode,
+    CFRunLoop, DispatchQoS, DispatchQueue, DynamicStore, NetworkConnection, Preferences,
+    Reachability, RunLoopMode,
 };
 
 fn wait_for(mut condition: impl FnMut() -> bool) -> bool {
@@ -218,6 +218,33 @@ fn preferences_drop_clears_the_dispatch_queue_and_releases_the_callback(
     prefs.set_dispatch_queue_global()?;
     drop(prefs);
     assert!(wait_for(|| Arc::strong_count(&witness) == 1));
+    Ok(())
+}
+
+#[test]
+fn preferences_lock_returns_a_guard_or_an_access_error() -> Result<(), Box<dyn std::error::Error>> {
+    let prefs = common::temporary_preferences("lock-guard");
+    if unsafe { libc::geteuid() } != 0 {
+        let error = prefs
+            .lock(false)
+            .expect_err("locking needs root or an authorization");
+        assert_eq!(error.code, 1003);
+        return Ok(());
+    }
+
+    let path = common::unique_prefs_path("lock-guard-root");
+    let first = Preferences::new(
+        "systemconfiguration-rs.lock-first",
+        Some(path.to_string_lossy().as_ref()),
+    )?;
+    let second = Preferences::new(
+        "systemconfiguration-rs.lock-second",
+        Some(path.to_string_lossy().as_ref()),
+    )?;
+    let guard = first.lock(false)?;
+    assert!(second.lock(false).is_err());
+    drop(guard);
+    second.lock(false)?.unlock()?;
     Ok(())
 }
 
