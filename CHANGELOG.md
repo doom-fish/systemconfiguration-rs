@@ -38,6 +38,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instead of leaking together with its configd session.
 - Scheduling is no longer limited to the current thread's run loop in the
   default mode or a queue private to the crate.
+- `build.rs` no longer adds the toolchain's Swift 5.5 back-deployment
+  directory (`usr/lib/swift-5.5/macosx`) to the link search path or the
+  rpath. Its old `libswift_Concurrency.dylib` shadowed the SDK's
+  `libswift_Concurrency.tbd` in every binary that depends on this crate, so
+  linking failed next to a Swift bridge that uses newer concurrency APIs,
+  such as apple-localauthentication's.
 
 ### Changed
 
