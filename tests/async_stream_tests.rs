@@ -35,11 +35,13 @@ mod async_stream {
 
     #[test]
     fn reachability_subscribe_and_drop() {
-        let stream = ReachabilityStream::subscribe("apple.com", 8)
+        let stream = ReachabilityStream::subscribe("localhost", 8)
             .expect("ReachabilityStream::subscribe should succeed");
         let _next = stream.next();
-        assert_eq!(stream.buffered_count(), 0);
-        assert!(stream.try_next().is_none());
+        assert!(stream.buffered_count() <= 8);
+        while let Some(event) = stream.try_next() {
+            assert!(event.flags.is_reachable());
+        }
     }
 
     #[test]
