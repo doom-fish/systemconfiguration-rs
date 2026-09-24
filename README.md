@@ -92,9 +92,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ## Callbacks and scheduling
 
 `DynamicStore`, `Preferences`, `NetworkConnection` and `Reachability` deliver
-callbacks on any `CFRunLoop` in a `RunLoopMode` (`Default`, `Common` or
+callbacks on a `CFRunLoop` in a `RunLoopMode` (`Default`, `Common` or
 `Named`), or on a `DispatchQueue` you pass in. `CFRunLoop`, `DispatchQueue`
-and `DispatchQoS` are re-exported from `apple-cf`.
+and `DispatchQoS` are re-exported from `apple-cf`. `CFRunLoop` is `Send`, so a
+worker thread can hand its `CFRunLoop::current()` to the code that schedules.
 
 ```rust,no_run
 use systemconfiguration::{DispatchQoS, DispatchQueue, DynamicStore};
@@ -111,6 +112,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+- `Reachability` and `NetworkConnection` can be scheduled on any thread's run
+  loop. A `DynamicStore` run-loop source and `Preferences` only accept the
+  calling thread's run loop or the main run loop, and return
+  `kSCStatusInvalidArgument` otherwise: SystemConfiguration runs the schedule
+  and cancel callouts of the run-loop source behind them without locking, and
+  Core Foundation cancels a source on the thread that exits or frees its run
+  loop. Use a `DispatchQueue` to receive their callbacks on another thread.
 - Callbacks are `Send` closures, because SystemConfiguration may run them on
   another thread and release them there.
 - SystemConfiguration holds its own reference to the callback for as long as

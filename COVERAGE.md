@@ -25,8 +25,12 @@ are exposed. The percentage counts named entry points over the headers listed
 above; it says nothing about behaviour. Before 0.6.0 the `*ScheduleWithRunLoop`
 and `*SetDispatchQueue` wrappers only used the current thread's run loop in the
 default mode or a queue private to the crate, and callback contexts were not
-retained; they now take any run loop, mode or queue and keep the callback alive
-while SystemConfiguration can call it.
+retained; they now take a run loop in any mode, or any queue, and keep the
+callback alive while SystemConfiguration can call it. `Reachability` and
+`NetworkConnection` accept any thread's run loop; a `DynamicStore` run-loop
+source and `Preferences` accept the calling thread's or the main run loop,
+because SystemConfiguration does not synchronize the schedule and cancel
+callouts of the run-loop source behind them.
 
 ## DynamicStore
 

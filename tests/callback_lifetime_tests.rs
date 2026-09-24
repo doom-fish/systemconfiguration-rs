@@ -11,8 +11,8 @@ use std::{
 };
 
 use systemconfiguration::{
-    CFRunLoop, DispatchQoS, DispatchQueue, DynamicStore, NetworkConnection, Preferences,
-    Reachability, RunLoopMode,
+    schema_definitions::SC_STATUS_INVALID_ARGUMENT, CFRunLoop, DispatchQoS, DispatchQueue,
+    DynamicStore, NetworkConnection, Preferences, Reachability, RunLoopMode,
 };
 
 fn wait_for(mut condition: impl FnMut() -> bool) -> bool {
@@ -430,5 +430,62 @@ fn a_reachability_callback_can_replace_its_own_registration(
     let own = OWN_REGISTRATION.with(|slot| slot.borrow_mut().take());
     assert!(own.is_some());
     drop(own);
+    Ok(())
+}
+
+#[test]
+fn network_connections_schedule_on_another_threads_run_loop(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let worker = RunLoopThread::spawn();
+    let (witness, captured) = witness();
+    let connection = NetworkConnection::with_service_id_and_callback(
+        "00000000-0000-0000-0000-000000000000",
+        move |_| {
+            let _ = &captured;
+        },
+    )?;
+    connection.schedule_with_run_loop(&worker.run_loop, RunLoopMode::Default)?;
+    connection.unschedule_from_run_loop(&worker.run_loop, RunLoopMode::Default)?;
+    connection.schedule_with_run_loop(&worker.run_loop, RunLoopMode::Common)?;
+
+    drop(connection);
+    assert!(wait_for(|| Arc::strong_count(&witness) == 1));
+    worker.join();
+    Ok(())
+}
+
+#[test]
+fn dynamic_store_sources_and_preferences_refuse_other_threads_run_loops(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let worker = RunLoopThread::spawn();
+
+    let store = DynamicStore::new_with_callback("systemconfiguration-rs.foreign-ds", |_| {})?;
+    let source = store.create_run_loop_source(0)?;
+    let error = source
+        .schedule(&worker.run_loop, RunLoopMode::Default)
+        .expect_err("another thread's run loop");
+    assert_eq!(error.code, SC_STATUS_INVALID_ARGUMENT);
+    source.schedule(
+        &CFRunLoop::main(),
+        RunLoopMode::Named("systemconfiguration-rs.foreign-ds"),
+    )?;
+    source.schedule(&CFRunLoop::current(), RunLoopMode::Default)?;
+
+    let prefs = common::temporary_preferences("foreign-run-loop");
+    prefs.set_callback(|_| {})?;
+    let error = prefs
+        .schedule_with_run_loop(&worker.run_loop, RunLoopMode::Default)
+        .expect_err("another thread's run loop");
+    assert_eq!(error.code, SC_STATUS_INVALID_ARGUMENT);
+    prefs.schedule_with_run_loop(
+        &CFRunLoop::main(),
+        RunLoopMode::Named("systemconfiguration-rs.foreign-prefs"),
+    )?;
+    prefs.schedule_with_run_loop(&CFRunLoop::current(), RunLoopMode::Default)?;
+
+    drop(store);
+    drop(source);
+    drop(prefs);
+    worker.join();
     Ok(())
 }

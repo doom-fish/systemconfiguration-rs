@@ -303,6 +303,10 @@ impl Preferences {
         run_loop: &CFRunLoop,
         mode: RunLoopMode<'_>,
     ) -> Result<()> {
+        crate::run_loop::require_this_thread_or_main(
+            run_loop,
+            "sc_preferences_schedule_with_run_loop",
+        )?;
         let ok = mode.with_raw(|mode| unsafe {
             ffi::preferences::sc_preferences_schedule_with_run_loop(
                 self.as_ptr(),

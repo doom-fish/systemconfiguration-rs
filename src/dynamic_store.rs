@@ -614,6 +614,7 @@ impl DynamicStoreRunLoopSource {
     }
 
     pub fn schedule(&self, run_loop: &CFRunLoop, mode: RunLoopMode<'_>) -> Result<()> {
+        crate::run_loop::require_this_thread_or_main(run_loop, "sc_run_loop_source_schedule")?;
         if !self.is_valid() {
             return Err(SystemConfigurationError::null(
                 "sc_run_loop_source_schedule",

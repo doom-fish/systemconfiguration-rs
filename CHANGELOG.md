@@ -46,6 +46,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** `Reachability::set_callback` takes a `Send` closure and
   replaces `set_callback_send`. It works with any run loop or dispatch queue,
   and the callback may drop or replace its own registration.
+- **Breaking:** `DynamicStoreRunLoopSource::schedule` and
+  `Preferences::schedule_with_run_loop` return `kSCStatusInvalidArgument` for a
+  run loop other than the calling thread's or the main thread's.
+  SystemConfiguration runs the schedule and cancel callouts of the run-loop
+  source behind both without locking, and Core Foundation cancels a source on
+  the thread that exits or frees its run loop, which raced with the owning
+  thread once `CFRunLoop` became `Send`. `Reachability` and `NetworkConnection`
+  accept any thread's run loop.
 - **Breaking:** the fixed-target helpers are removed:
   `schedule_with_run_loop_current`, `unschedule_from_run_loop_current` and
   `set_dispatch_queue_global` on `Reachability`, `Preferences` and
