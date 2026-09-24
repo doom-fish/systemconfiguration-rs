@@ -42,7 +42,6 @@ unsafe extern "C" {
         mode: Handle,
     ) -> u8;
     pub(crate) fn sc_preferences_set_dispatch_queue(raw: Handle, queue: Handle) -> u8;
-    pub(crate) fn sc_preferences_set_dispatch_queue_global(raw: Handle) -> u8;
     pub(crate) fn sc_preferences_clear_dispatch_queue(raw: Handle) -> u8;
     pub(crate) fn sc_preferences_path_create_unique_child(
         raw: Handle,

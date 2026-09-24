@@ -73,7 +73,7 @@ Verified coverage confirmed by cross-reference with current safe wrappers, bridg
 | `SCDynamicStoreNotifyValue` | function | SCDynamicStore.h | raw_ffi.rs |
 | `SCDynamicStoreRef` | constant | SCDynamicStore.h | DynamicStore |
 | `SCDynamicStoreRemoveValue` | function | SCDynamicStore.h | raw_ffi.rs |
-| `SCDynamicStoreSetDispatchQueue` | function | SCDynamicStore.h | DynamicStore::set_dispatch_queue_global() |
+| `SCDynamicStoreSetDispatchQueue` | function | SCDynamicStore.h | DynamicStore::set_dispatch_queue() |
 | `SCDynamicStoreSetMultiple` | function | SCDynamicStore.h | DynamicStore::set_multiple() |
 | `SCDynamicStoreSetNotificationKeys` | constant | SCDynamicStore.h | raw_ffi.rs |
 | `SCDynamicStoreSetValue` | function | SCDynamicStore.h | raw_ffi.rs |
@@ -95,12 +95,12 @@ Verified coverage confirmed by cross-reference with current safe wrappers, bridg
 | `SCNetworkConnectionGetTypeID` | constant | SCNetworkConnection.h | NetworkConnection::type_id() |
 | `SCNetworkConnectionPPPStatus` | constant | SCNetworkConnection.h | NetworkConnectionPppStatus |
 | `SCNetworkConnectionRef` | constant | SCNetworkConnection.h | NetworkConnection |
-| `SCNetworkConnectionScheduleWithRunLoop` | function | SCNetworkConnection.h | NetworkConnection::schedule_with_run_loop_current() |
-| `SCNetworkConnectionSetDispatchQueue` | function | SCNetworkConnection.h | NetworkConnection::set_dispatch_queue_global() |
+| `SCNetworkConnectionScheduleWithRunLoop` | function | SCNetworkConnection.h | NetworkConnection::schedule_with_run_loop() |
+| `SCNetworkConnectionSetDispatchQueue` | function | SCNetworkConnection.h | NetworkConnection::set_dispatch_queue() |
 | `SCNetworkConnectionStart` | function | SCNetworkConnection.h | NetworkConnection::start() |
 | `SCNetworkConnectionStatus` | constant | SCNetworkConnection.h | NetworkConnectionStatus |
 | `SCNetworkConnectionStop` | function | SCNetworkConnection.h | NetworkConnection::stop() |
-| `SCNetworkConnectionUnscheduleFromRunLoop` | function | SCNetworkConnection.h | NetworkConnection::unschedule_from_run_loop_current() |
+| `SCNetworkConnectionUnscheduleFromRunLoop` | function | SCNetworkConnection.h | NetworkConnection::unschedule_from_run_loop() |
 | `SCNetworkInterface` | function | SCNetworkConfiguration.h | NetworkInterface |
 | `SCNetworkInterfaceCopyAll` | function | SCNetworkConfiguration.h | raw_ffi.rs |
 | `SCNetworkInterfaceCopyMTU` | function | SCNetworkConfiguration.h | raw_ffi.rs |
@@ -134,7 +134,7 @@ Verified coverage confirmed by cross-reference with current safe wrappers, bridg
 | `SCNetworkProtocolSetConfiguration` | function | SCNetworkConfiguration.h | raw_ffi.rs |
 | `SCNetworkProtocolSetEnabled` | function | SCNetworkConfiguration.h | raw_ffi.rs |
 | `SCNetworkReachability` | constant | SCNetwork.h | NetworkReachability |
-| `SCNetworkReachabilityCallBack` | constant | SCNetworkReachability.h | Reachability::set_callback() / Reachability::set_callback_send() |
+| `SCNetworkReachabilityCallBack` | constant | SCNetworkReachability.h | Reachability::set_callback() |
 | `SCNetworkReachabilityContext` | constant | SCNetworkReachability.h | Reachability callback state |
 | `SCNetworkReachabilityCreateWithAddress` | function | SCNetwork.h | raw_ffi.rs |
 | `SCNetworkReachabilityCreateWithAddressPair` | function | SCNetworkReachability.h | raw_ffi.rs |
@@ -145,7 +145,7 @@ Verified coverage confirmed by cross-reference with current safe wrappers, bridg
 | `SCNetworkReachabilityRef` | constant | SCNetwork.h | NetworkReachability |
 | `SCNetworkReachabilityScheduleWithRunLoop` | function | SCNetworkReachability.h | raw_ffi.rs |
 | `SCNetworkReachabilitySetCallback` | function | SCNetworkReachability.h | raw_ffi.rs |
-| `SCNetworkReachabilitySetDispatchQueue` | function | SCNetworkReachability.h | Reachability::set_dispatch_queue_global() |
+| `SCNetworkReachabilitySetDispatchQueue` | function | SCNetworkReachability.h | Reachability::set_dispatch_queue() |
 | `SCNetworkReachabilityUnscheduleFromRunLoop` | function | SCNetworkReachability.h | raw_ffi.rs |
 | `SCNetworkService` | function | SCNetworkConfiguration.h | NetworkService |
 | `SCNetworkServiceAddProtocolType` | function | SCNetworkConfiguration.h | raw_ffi.rs |
@@ -206,16 +206,16 @@ Verified coverage confirmed by cross-reference with current safe wrappers, bridg
 | `SCPreferencesPathSetValue` | function | SCPreferencesPath.h | raw_ffi.rs |
 | `SCPreferencesRef` | function | SCNetworkConfiguration.h | Preferences |
 | `SCPreferencesRemoveValue` | function | SCPreferences.h | raw_ffi.rs |
-| `SCPreferencesScheduleWithRunLoop` | function | SCPreferences.h | Preferences::schedule_with_run_loop_current() |
+| `SCPreferencesScheduleWithRunLoop` | function | SCPreferences.h | Preferences::schedule_with_run_loop() |
 | `SCPreferencesSetCallback` | constant | SCPreferences.h | Preferences::set_callback() |
 | `SCPreferencesSetComputerName` | constant | SCPreferencesSetSpecific.h | raw_ffi.rs |
-| `SCPreferencesSetDispatchQueue` | function | SCPreferences.h | Preferences::set_dispatch_queue_global() |
+| `SCPreferencesSetDispatchQueue` | function | SCPreferences.h | Preferences::set_dispatch_queue() |
 | `SCPreferencesSetLocalHostName` | function | SCPreferencesSetSpecific.h | raw_ffi.rs |
 | `SCPreferencesSetSpecific` | constant | SCPreferencesSetSpecific.h | Preferences::set_computer_name() / Preferences::set_local_host_name() |
 | `SCPreferencesSetValue` | function | SCPreferences.h | raw_ffi.rs |
 | `SCPreferencesSynchronize` | function | SCPreferences.h | raw_ffi.rs |
 | `SCPreferencesUnlock` | constant | SCPreferences.h | raw_ffi.rs |
-| `SCPreferencesUnscheduleFromRunLoop` | function | SCPreferences.h | Preferences::unschedule_from_run_loop_current() |
+| `SCPreferencesUnscheduleFromRunLoop` | function | SCPreferences.h | Preferences::unschedule_from_run_loop() |
 | `SCSchemaDefinitions` | constant | SCDynamicStoreCopySpecific.h | schema_definitions module / Schema::catalog() |
 | `SCVLANInterface` | function | SCNetworkConfiguration.h | VlanInterface |
 | `SCVLANInterfaceCopyAll` | function | SCNetworkConfiguration.h | VlanInterface::copy_all() |

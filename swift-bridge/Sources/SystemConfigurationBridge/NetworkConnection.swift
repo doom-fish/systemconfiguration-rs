@@ -244,19 +244,6 @@ public func sc_network_connection_set_dispatch_queue(
     return u8(ok)
 }
 
-@_cdecl("sc_network_connection_set_dispatch_queue_global")
-public func sc_network_connection_set_dispatch_queue_global(_ raw: UnsafeMutableRawPointer?) -> UInt8 {
-    guard let box = networkConnection(raw) else {
-        return 0
-    }
-    let queue = DispatchQueue(label: "systemconfiguration-rs.network-connection")
-    let ok = SCNetworkConnectionSetDispatchQueue(box.value, queue)
-    if ok {
-        box.dispatchQueue = queue
-    }
-    return u8(ok)
-}
-
 @_cdecl("sc_network_connection_clear_dispatch_queue")
 public func sc_network_connection_clear_dispatch_queue(_ raw: UnsafeMutableRawPointer?) -> UInt8 {
     guard let box = networkConnection(raw) else {

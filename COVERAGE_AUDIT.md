@@ -227,7 +227,7 @@ All non-exempt public macOS symbols in the audited headers are now surfaced. The
 | SCDynamicStoreContext | typedef | SCDynamicStore.h | DynamicStore closure callback |
 | SCDynamicStoreCreateRunLoopSource | function | SCDynamicStore.h | DynamicStore::create_run_loop_source / DynamicStoreRunLoopSource |
 | SCDynamicStoreGetTypeID | function | SCDynamicStore.h | DynamicStore::type_id |
-| SCDynamicStoreSetDispatchQueue | function | SCDynamicStore.h | DynamicStore::set_dispatch_queue_global / clear_dispatch_queue |
+| SCDynamicStoreSetDispatchQueue | function | SCDynamicStore.h | DynamicStore::set_dispatch_queue / clear_dispatch_queue |
 | SCDynamicStoreSetMultiple | function | SCDynamicStore.h | DynamicStore::set_multiple |
 | DHCPInfoGetLeaseExpirationTime | function | SCDynamicStoreCopyDHCPInfo.h | DynamicStore::dhcp_lease_expiration_time |
 | DHCPInfoGetLeaseStartTime | function | SCDynamicStoreCopyDHCPInfo.h | DynamicStore::dhcp_lease_start_time |
@@ -291,21 +291,21 @@ All non-exempt public macOS symbols in the audited headers are now surfaced. The
 | SCNetworkConnectionGetTypeID | function | SCNetworkConnection.h | NetworkConnection::type_id |
 | SCNetworkConnectionPPPStatus | typedef | SCNetworkConnection.h | NetworkConnectionPppStatus |
 | SCNetworkConnectionRef | typedef | SCNetworkConnection.h | NetworkConnection |
-| SCNetworkConnectionScheduleWithRunLoop | function | SCNetworkConnection.h | NetworkConnection::schedule_with_run_loop_current |
-| SCNetworkConnectionSetDispatchQueue | function | SCNetworkConnection.h | NetworkConnection::set_dispatch_queue_global / clear_dispatch_queue |
+| SCNetworkConnectionScheduleWithRunLoop | function | SCNetworkConnection.h | NetworkConnection::schedule_with_run_loop |
+| SCNetworkConnectionSetDispatchQueue | function | SCNetworkConnection.h | NetworkConnection::set_dispatch_queue / clear_dispatch_queue |
 | SCNetworkConnectionStart | function | SCNetworkConnection.h | NetworkConnection::start |
 | SCNetworkConnectionStatus | typedef | SCNetworkConnection.h | NetworkConnectionStatus |
 | SCNetworkConnectionStop | function | SCNetworkConnection.h | NetworkConnection::stop |
-| SCNetworkConnectionUnscheduleFromRunLoop | function | SCNetworkConnection.h | NetworkConnection::unschedule_from_run_loop_current |
+| SCNetworkConnectionUnscheduleFromRunLoop | function | SCNetworkConnection.h | NetworkConnection::unschedule_from_run_loop |
 | SCPreferencesCallBack | typedef | SCPreferences.h | Preferences callback closure |
 | SCPreferencesContext | typedef | SCPreferences.h | Preferences callback closure |
 | SCPreferencesCreateWithAuthorization | function | SCPreferences.h | Preferences::new_with_authorization / new_with_authorization_raw |
 | SCPreferencesGetTypeID | function | SCPreferences.h | Preferences::type_id |
 | SCPreferencesNotification | typedef | SCPreferences.h | PreferencesNotification |
-| SCPreferencesScheduleWithRunLoop | function | SCPreferences.h | Preferences::schedule_with_run_loop_current |
+| SCPreferencesScheduleWithRunLoop | function | SCPreferences.h | Preferences::schedule_with_run_loop |
 | SCPreferencesSetCallback | function | SCPreferences.h | Preferences::set_callback / clear_callback |
-| SCPreferencesSetDispatchQueue | function | SCPreferences.h | Preferences::set_dispatch_queue_global / clear_dispatch_queue |
-| SCPreferencesUnscheduleFromRunLoop | function | SCPreferences.h | Preferences::unschedule_from_run_loop_current |
+| SCPreferencesSetDispatchQueue | function | SCPreferences.h | Preferences::set_dispatch_queue / clear_dispatch_queue |
+| SCPreferencesUnscheduleFromRunLoop | function | SCPreferences.h | Preferences::unschedule_from_run_loop |
 | kSCDynamicStoreDomainFile | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
 | kSCDynamicStoreDomainPlugin | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |
 | kSCDynamicStoreDomainPrefs | const | SCSchemaDefinitions.h | Schema::catalog().all / SchemaCatalog::get |

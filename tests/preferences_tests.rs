@@ -1,4 +1,6 @@
-use systemconfiguration::{Preferences, PreferencesNotification};
+use systemconfiguration::{
+    CFRunLoop, DispatchQoS, DispatchQueue, Preferences, PreferencesNotification, RunLoopMode,
+};
 
 #[test]
 fn preferences_support_read_only_queries_and_paths() -> Result<(), Box<dyn std::error::Error>> {
@@ -26,9 +28,12 @@ fn preferences_support_read_only_queries_and_paths() -> Result<(), Box<dyn std::
         None,
         |_| {},
     )?;
-    callback_prefs.schedule_with_run_loop_current()?;
-    callback_prefs.unschedule_from_run_loop_current()?;
-    callback_prefs.set_dispatch_queue_global()?;
+    callback_prefs.schedule_with_run_loop(&CFRunLoop::current(), RunLoopMode::Default)?;
+    callback_prefs.unschedule_from_run_loop(&CFRunLoop::current(), RunLoopMode::Default)?;
+    callback_prefs.set_dispatch_queue(&DispatchQueue::new(
+        "systemconfiguration-rs.preferences-tests",
+        DispatchQoS::Utility,
+    ))?;
     callback_prefs.clear_dispatch_queue()?;
     callback_prefs.clear_callback()?;
 

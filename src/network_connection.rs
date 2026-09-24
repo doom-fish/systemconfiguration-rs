@@ -353,16 +353,6 @@ impl NetworkConnection {
         bridge::bool_result("sc_network_connection_unschedule_from_run_loop", ok)
     }
 
-    /// Wraps `SCNetworkConnectionScheduleWithRunLoopCurrent`.
-    pub fn schedule_with_run_loop_current(&self) -> Result<()> {
-        self.schedule_with_run_loop(&CFRunLoop::current(), RunLoopMode::Default)
-    }
-
-    /// Wraps `SCNetworkConnectionUnscheduleFromRunLoopCurrent`.
-    pub fn unschedule_from_run_loop_current(&self) -> Result<()> {
-        self.unschedule_from_run_loop(&CFRunLoop::current(), RunLoopMode::Default)
-    }
-
     pub fn set_dispatch_queue(&self, queue: &DispatchQueue) -> Result<()> {
         let ok = unsafe {
             ffi::network_connection::sc_network_connection_set_dispatch_queue(
@@ -371,16 +361,6 @@ impl NetworkConnection {
             )
         };
         bridge::bool_result("sc_network_connection_set_dispatch_queue", ok)
-    }
-
-    /// Wraps `SCNetworkConnectionSetDispatchQueueGlobal`.
-    pub fn set_dispatch_queue_global(&self) -> Result<()> {
-        let ok = unsafe {
-            ffi::network_connection::sc_network_connection_set_dispatch_queue_global(
-                self.inner.raw.as_ptr(),
-            )
-        };
-        bridge::bool_result("sc_network_connection_set_dispatch_queue_global", ok)
     }
 
     /// Wraps `SCNetworkConnectionClearDispatchQueue`.

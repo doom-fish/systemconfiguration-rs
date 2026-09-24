@@ -111,17 +111,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+- Callbacks are `Send` closures, because SystemConfiguration may run them on
+  another thread and release them there.
 - SystemConfiguration holds its own reference to the callback for as long as
   it can call it, so a callback that is already running when you drop the
-  handle, or replace a `Preferences` callback, finishes safely.
+  handle or replace the callback, even from inside the callback, finishes
+  safely.
 - Dropping the last handle (clones share one registration) stops new
   callbacks, then unschedules the object from every run loop and mode it was
   scheduled on, clears its dispatch queue and callback, and invalidates the
   `DynamicStore`'s run-loop sources. The closure is dropped at that point
   unless it is running.
-- `Reachability::set_callback` takes a closure that is not `Send`; such a
-  callback may only run on the owning thread's run loop. Use
-  `set_callback_send` for other run loops and dispatch queues.
 - `Preferences::lock` returns a `PreferencesLock` that unlocks when dropped.
 - SystemConfiguration never frees an `SCNetworkConnection` that has a
   callback; the Rust closure is still dropped with the last handle.

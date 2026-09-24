@@ -337,14 +337,6 @@ impl DynamicStore {
         bridge::bool_result("sc_dynamic_store_set_dispatch_queue", ok)
     }
 
-    /// Wraps `SCDynamicStoreSetDispatchQueueGlobal`.
-    pub fn set_dispatch_queue_global(&self) -> Result<()> {
-        let ok = unsafe {
-            ffi::dynamic_store::sc_dynamic_store_set_dispatch_queue_global(self.inner.raw.as_ptr())
-        };
-        bridge::bool_result("sc_dynamic_store_set_dispatch_queue_global", ok)
-    }
-
     /// Wraps `SCDynamicStoreClearDispatchQueue`.
     pub fn clear_dispatch_queue(&self) -> Result<()> {
         let ok = unsafe {
@@ -647,16 +639,6 @@ impl DynamicStoreRunLoopSource {
             )
         });
         bridge::bool_result("sc_run_loop_source_unschedule", ok)
-    }
-
-    /// Wraps `SCRunLoopSourceScheduleCurrentDefaultMode`.
-    pub fn schedule_current_default_mode(&self) -> Result<()> {
-        self.schedule(&CFRunLoop::current(), RunLoopMode::Default)
-    }
-
-    /// Wraps `SCRunLoopSourceUnscheduleCurrentDefaultMode`.
-    pub fn unschedule_current_default_mode(&self) -> Result<()> {
-        self.unschedule(&CFRunLoop::current(), RunLoopMode::Default)
     }
 }
 

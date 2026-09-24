@@ -1,9 +1,9 @@
 mod common;
 
 use std::{
-    ffi::c_void,
+    cell::RefCell,
     sync::{
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
         mpsc, Arc,
     },
     thread,
@@ -44,14 +44,13 @@ impl RunLoopThread {
         let (stop, stop_rx) = mpsc::channel::<()>();
         let handle = thread::spawn(move || {
             run_loop_tx
-                .send(CFRunLoop::current().as_ptr() as usize)
+                .send(CFRunLoop::current())
                 .expect("send run loop");
             while stop_rx.try_recv().is_err() {
                 let _ = CFRunLoop::run_in_default_mode(Duration::from_millis(20), false);
             }
         });
-        let raw = run_loop_rx.recv().expect("receive run loop") as *mut c_void;
-        let run_loop = unsafe { CFRunLoop::from_raw_borrowed(raw) }.expect("run loop");
+        let run_loop = run_loop_rx.recv().expect("receive run loop");
         Self {
             run_loop,
             stop,
@@ -108,7 +107,7 @@ fn dynamic_store_clones_share_one_registration() -> Result<(), Box<dyn std::erro
     let key = DynamicStore::computer_name_key()?;
     store.set_notification_keys(&[key.as_str()], &[] as &[&str])?;
     let source = store.create_run_loop_source(0)?;
-    source.schedule_current_default_mode()?;
+    source.schedule(&CFRunLoop::current(), RunLoopMode::Default)?;
 
     let clone = store.clone();
     drop(store);
@@ -215,7 +214,10 @@ fn preferences_drop_clears_the_dispatch_queue_and_releases_the_callback(
     prefs.set_callback(move |_| {
         let _ = &captured;
     })?;
-    prefs.set_dispatch_queue_global()?;
+    prefs.set_dispatch_queue(&DispatchQueue::new(
+        "systemconfiguration-rs.test-prefs-queue",
+        DispatchQoS::Utility,
+    ))?;
     drop(prefs);
     assert!(wait_for(|| Arc::strong_count(&witness) == 1));
     Ok(())
@@ -281,7 +283,7 @@ fn reachability_delivers_on_another_threads_run_loop_and_releases_on_drop(
     let hits = Arc::new(AtomicUsize::new(0));
     let counter = Arc::clone(&hits);
     let mut reachability = Reachability::with_name("localhost")?;
-    reachability.set_callback_send(move |_| {
+    reachability.set_callback(move |_| {
         counter.fetch_add(1, Ordering::SeqCst);
     })?;
     reachability.schedule_with_run_loop(&worker.run_loop, RunLoopMode::Default)?;
@@ -304,7 +306,7 @@ fn reachability_delivers_on_a_dispatch_queue_and_survives_teardown_races(
     for _ in 0..25 {
         let counter = Arc::clone(&hits);
         let mut reachability = Reachability::with_name("localhost")?;
-        reachability.set_callback_send(move |_| {
+        reachability.set_callback(move |_| {
             counter.fetch_add(1, Ordering::SeqCst);
             thread::sleep(Duration::from_millis(1));
         })?;
@@ -317,7 +319,7 @@ fn reachability_delivers_on_a_dispatch_queue_and_survives_teardown_races(
     let counter = Arc::clone(&hits);
     let before = hits.load(Ordering::SeqCst);
     let mut reachability = Reachability::with_name("localhost")?;
-    reachability.set_callback_send(move |_| {
+    reachability.set_callback(move |_| {
         counter.fetch_add(1, Ordering::SeqCst);
     })?;
     reachability.set_dispatch_queue(&queue)?;
@@ -328,29 +330,105 @@ fn reachability_delivers_on_a_dispatch_queue_and_survives_teardown_races(
 }
 
 #[test]
-fn reachability_keeps_non_send_callbacks_on_the_owning_thread(
+fn reachability_callbacks_can_be_replaced_while_scheduled_on_another_thread_or_a_queue(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let worker = RunLoopThread::spawn();
-    let queue = DispatchQueue::new("systemconfiguration-rs.test-local", DispatchQoS::Utility);
+    let (first, first_captured) = witness();
+    let mut on_worker = Reachability::with_name("localhost")?;
+    on_worker.set_callback(move |_| {
+        let _ = &first_captured;
+    })?;
+    on_worker.schedule_with_run_loop(&worker.run_loop, RunLoopMode::Default)?;
+    on_worker.set_callback(|_| {})?;
+    assert!(wait_for(|| Arc::strong_count(&first) == 1));
 
-    let mut local = Reachability::with_name("localhost")?;
-    local.set_callback(|_| {})?;
-    assert!(local
-        .schedule_with_run_loop(&worker.run_loop, RunLoopMode::Default)
-        .is_err());
-    assert!(local.set_dispatch_queue(&queue).is_err());
-    local.schedule_with_run_loop(&CFRunLoop::current(), RunLoopMode::Default)?;
-    local.unschedule_from_run_loop_current()?;
+    let (second, second_captured) = witness();
+    let mut on_queue = Reachability::with_name("localhost")?;
+    on_queue.set_dispatch_queue(&DispatchQueue::new(
+        "systemconfiguration-rs.test-replace",
+        DispatchQoS::Utility,
+    ))?;
+    on_queue.set_callback(move |_| {
+        let _ = &second_captured;
+    })?;
+    on_queue.set_callback(|_| {})?;
+    assert!(wait_for(|| Arc::strong_count(&second) == 1));
 
-    let mut shared = Reachability::with_name("localhost")?;
-    shared.set_callback_send(|_| {})?;
-    shared.schedule_with_run_loop(&worker.run_loop, RunLoopMode::Default)?;
-    assert!(shared.set_callback(|_| {}).is_err());
-    shared.unschedule_from_run_loop(&worker.run_loop, RunLoopMode::Default)?;
-    shared.set_callback(|_| {})?;
-
-    drop(local);
-    drop(shared);
+    drop(on_worker);
+    drop(on_queue);
     worker.join();
+    Ok(())
+}
+
+struct DropFlag(Arc<AtomicBool>);
+
+impl Drop for DropFlag {
+    fn drop(&mut self) {
+        self.0.store(true, Ordering::SeqCst);
+    }
+}
+
+thread_local! {
+    static OWN_REGISTRATION: RefCell<Option<Reachability>> = const { RefCell::new(None) };
+}
+
+#[test]
+fn a_reachability_callback_can_drop_its_own_registration() -> Result<(), Box<dyn std::error::Error>>
+{
+    let dropped = Arc::new(AtomicBool::new(false));
+    let dropped_while_running = Arc::new(AtomicBool::new(false));
+    let calls = Arc::new(AtomicUsize::new(0));
+    let flag = DropFlag(Arc::clone(&dropped));
+    let observed = Arc::clone(&dropped);
+    let while_running = Arc::clone(&dropped_while_running);
+    let counter = Arc::clone(&calls);
+    let mut reachability = Reachability::with_name("localhost")?;
+    reachability.set_callback(move |_| {
+        let _ = &flag;
+        counter.fetch_add(1, Ordering::SeqCst);
+        let own = OWN_REGISTRATION.with(|slot| slot.borrow_mut().take());
+        drop(own);
+        while_running.fetch_or(observed.load(Ordering::SeqCst), Ordering::SeqCst);
+    })?;
+    reachability.schedule_with_run_loop(&CFRunLoop::current(), RunLoopMode::Default)?;
+    OWN_REGISTRATION.with(|slot| *slot.borrow_mut() = Some(reachability));
+
+    assert!(wait_for(|| dropped.load(Ordering::SeqCst)));
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    assert!(!dropped_while_running.load(Ordering::SeqCst));
+    assert!(OWN_REGISTRATION.with(|slot| slot.borrow().is_none()));
+    Ok(())
+}
+
+#[test]
+fn a_reachability_callback_can_replace_its_own_registration(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let dropped = Arc::new(AtomicBool::new(false));
+    let dropped_while_running = Arc::new(AtomicBool::new(false));
+    let replaced = Arc::new(AtomicBool::new(false));
+    let flag = DropFlag(Arc::clone(&dropped));
+    let observed = Arc::clone(&dropped);
+    let while_running = Arc::clone(&dropped_while_running);
+    let replaced_flag = Arc::clone(&replaced);
+    let mut reachability = Reachability::with_name("localhost")?;
+    reachability.set_callback(move |_| {
+        let _ = &flag;
+        let replacement = OWN_REGISTRATION.with(|slot| {
+            slot.borrow_mut()
+                .as_mut()
+                .map(|own| own.set_callback(|_| {}))
+        });
+        replaced_flag.fetch_or(matches!(replacement, Some(Ok(()))), Ordering::SeqCst);
+        while_running.fetch_or(observed.load(Ordering::SeqCst), Ordering::SeqCst);
+    })?;
+    reachability.schedule_with_run_loop(&CFRunLoop::current(), RunLoopMode::Default)?;
+    OWN_REGISTRATION.with(|slot| *slot.borrow_mut() = Some(reachability));
+
+    assert!(wait_for(|| dropped.load(Ordering::SeqCst)));
+    assert!(replaced.load(Ordering::SeqCst));
+    assert!(!dropped_while_running.load(Ordering::SeqCst));
+    let own = OWN_REGISTRATION.with(|slot| slot.borrow_mut().take());
+    assert!(own.is_some());
+    drop(own);
     Ok(())
 }

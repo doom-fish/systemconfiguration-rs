@@ -314,19 +314,6 @@ public func sc_preferences_set_dispatch_queue(
     return u8(ok)
 }
 
-@_cdecl("sc_preferences_set_dispatch_queue_global")
-public func sc_preferences_set_dispatch_queue_global(_ raw: UnsafeMutableRawPointer?) -> UInt8 {
-    guard let box = preferences(raw) else {
-        return 0
-    }
-    let queue = DispatchQueue(label: "systemconfiguration-rs.preferences")
-    let ok = SCPreferencesSetDispatchQueue(box.value, queue)
-    if ok {
-        box.dispatchQueue = queue
-    }
-    return u8(ok)
-}
-
 @_cdecl("sc_preferences_clear_dispatch_queue")
 public func sc_preferences_clear_dispatch_queue(_ raw: UnsafeMutableRawPointer?) -> UInt8 {
     guard let box = preferences(raw) else {

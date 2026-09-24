@@ -33,6 +33,5 @@ unsafe extern "C" {
         mode: Handle,
     ) -> u8;
     pub(crate) fn sc_reachability_set_dispatch_queue(raw: Handle, queue: Handle) -> u8;
-    pub(crate) fn sc_reachability_set_dispatch_queue_global(raw: Handle) -> u8;
     pub(crate) fn sc_reachability_clear_dispatch_queue(raw: Handle) -> u8;
 }

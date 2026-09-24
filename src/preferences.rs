@@ -328,16 +328,6 @@ impl Preferences {
         bridge::bool_result("sc_preferences_unschedule_from_run_loop", ok)
     }
 
-    /// Wraps `SCPreferencesScheduleWithRunLoopCurrent`.
-    pub fn schedule_with_run_loop_current(&self) -> Result<()> {
-        self.schedule_with_run_loop(&CFRunLoop::current(), RunLoopMode::Default)
-    }
-
-    /// Wraps `SCPreferencesUnscheduleFromRunLoopCurrent`.
-    pub fn unschedule_from_run_loop_current(&self) -> Result<()> {
-        self.unschedule_from_run_loop(&CFRunLoop::current(), RunLoopMode::Default)
-    }
-
     pub fn set_dispatch_queue(&self, queue: &DispatchQueue) -> Result<()> {
         let ok = unsafe {
             ffi::preferences::sc_preferences_set_dispatch_queue(
@@ -346,13 +336,6 @@ impl Preferences {
             )
         };
         bridge::bool_result("sc_preferences_set_dispatch_queue", ok)
-    }
-
-    /// Wraps `SCPreferencesSetDispatchQueueGlobal`.
-    pub fn set_dispatch_queue_global(&self) -> Result<()> {
-        let ok =
-            unsafe { ffi::preferences::sc_preferences_set_dispatch_queue_global(self.as_ptr()) };
-        bridge::bool_result("sc_preferences_set_dispatch_queue_global", ok)
     }
 
     /// Wraps `SCPreferencesClearDispatchQueue`.

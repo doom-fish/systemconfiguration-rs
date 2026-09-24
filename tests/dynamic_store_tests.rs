@@ -1,6 +1,8 @@
 mod common;
 
-use systemconfiguration::{DynamicStore, PropertyList};
+use systemconfiguration::{
+    CFRunLoop, DispatchQoS, DispatchQueue, DynamicStore, PropertyList, RunLoopMode,
+};
 
 #[test]
 fn dynamic_store_reads_existing_state_and_key_helpers() -> Result<(), Box<dyn std::error::Error>> {
@@ -39,9 +41,12 @@ fn dynamic_store_reads_existing_state_and_key_helpers() -> Result<(), Box<dyn st
     let computer_name_key = DynamicStore::computer_name_key()?;
     callback_store.set_notification_keys(&[computer_name_key.as_str()], &[] as &[&str])?;
     let source = callback_store.create_run_loop_source(0)?;
-    source.schedule_current_default_mode()?;
-    source.unschedule_current_default_mode()?;
-    callback_store.set_dispatch_queue_global()?;
+    source.schedule(&CFRunLoop::current(), RunLoopMode::Default)?;
+    source.unschedule(&CFRunLoop::current(), RunLoopMode::Default)?;
+    callback_store.set_dispatch_queue(&DispatchQueue::new(
+        "systemconfiguration-rs.dynamic-store-tests",
+        DispatchQoS::Utility,
+    ))?;
     callback_store.clear_dispatch_queue()?;
 
     let custom_key = DynamicStore::key_create("%@/%@", &["State:/Network", "Global/IPv4"])?;

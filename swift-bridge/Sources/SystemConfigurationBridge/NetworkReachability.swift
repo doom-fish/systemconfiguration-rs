@@ -243,20 +243,6 @@ public func sc_reachability_set_dispatch_queue(
     return u8(ok)
 }
 
-@_cdecl("sc_reachability_set_dispatch_queue_global")
-public func sc_reachability_set_dispatch_queue_global(_ raw: UnsafeMutableRawPointer?) -> UInt8 {
-    guard let box = reachability(raw) else {
-        return 0
-    }
-
-    let queue = DispatchQueue(label: "systemconfiguration-rs.reachability")
-    let ok = SCNetworkReachabilitySetDispatchQueue(box.value, queue)
-    if ok {
-        box.dispatchQueue = queue
-    }
-    return u8(ok)
-}
-
 @_cdecl("sc_reachability_clear_dispatch_queue")
 public func sc_reachability_clear_dispatch_queue(_ raw: UnsafeMutableRawPointer?) -> UInt8 {
     guard let box = reachability(raw) else {

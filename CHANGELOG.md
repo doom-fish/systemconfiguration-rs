@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   queue, and the async `ReachabilityStream` and `PreferencesNotificationStream`,
   could free their callback state while a callout was still running, because
   SystemConfiguration runs the callout after releasing its own lock.
+- `Reachability::set_callback` handed SystemConfiguration an unretained pointer
+  to its closure, so a closure that dropped or replaced its own `Reachability`
+  from inside the callback freed itself while it was running (a use-after-free
+  from safe code). Every `Reachability` callback now lives in a retained
+  context that SystemConfiguration releases after its last callout.
 
 ### Fixed
 
@@ -38,10 +43,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Breaking:** `Preferences::lock` returns a `PreferencesLock` that unlocks
   when dropped; `PreferencesLock::unlock` reports the result.
-- **Breaking:** `Reachability::set_callback` (closures that are not `Send`)
-  fails while the reachability is scheduled on another thread's run loop or a
-  dispatch queue, and `schedule_with_run_loop` refuses another thread's run loop
-  while such a callback is set.
+- **Breaking:** `Reachability::set_callback` takes a `Send` closure and
+  replaces `set_callback_send`. It works with any run loop or dispatch queue,
+  and the callback may drop or replace its own registration.
+- **Breaking:** the fixed-target helpers are removed:
+  `schedule_with_run_loop_current`, `unschedule_from_run_loop_current` and
+  `set_dispatch_queue_global` on `Reachability`, `Preferences` and
+  `NetworkConnection`, `DynamicStore::set_dispatch_queue_global`, and
+  `DynamicStoreRunLoopSource::{schedule_current_default_mode,
+  unschedule_current_default_mode}`. Pass `&CFRunLoop::current()` and
+  `RunLoopMode::Default`, or a `DispatchQueue`, to the general methods; the
+  `_global` helpers used a queue private to the crate, not a global queue.
 - `Preferences::set_callback` and `clear_callback` take `&self`.
 - Clones of `DynamicStore`, `Preferences` and `NetworkConnection` share one
   registration, which lives until the last clone is dropped.
@@ -67,6 +79,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - `Preferences::unlock`; use the `PreferencesLock` guard.
+- `Reachability::set_callback_send`; `set_callback` takes `Send` closures.
+- The `*_run_loop_current`, `*_current_default_mode` and
+  `set_dispatch_queue_global` helpers (see Changed).
 
 ## [0.5.6] - 2026-06-06
 
