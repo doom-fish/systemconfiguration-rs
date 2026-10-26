@@ -6,9 +6,9 @@ fn network_interfaces_expose_metadata() -> Result<(), Box<dyn std::error::Error>
     let ipv4 = NetworkInterface::ipv4()?;
     let _ = ipv4.interface_type()?;
 
-    assert!(!BondStatus::device_aggregation_status_key()?.is_empty());
-    assert!(!BondStatus::device_collecting_key()?.is_empty());
-    assert!(!BondStatus::device_distributing_key()?.is_empty());
+    assert_ne!(BondStatus::device_aggregation_status_key()?, "");
+    assert_ne!(BondStatus::device_collecting_key()?, "");
+    assert_ne!(BondStatus::device_distributing_key()?, "");
 
     let interfaces = NetworkInterface::copy_all()?;
     if let Some(interface) = interfaces.first() {

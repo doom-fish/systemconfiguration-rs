@@ -51,7 +51,7 @@ fn dynamic_store_reads_existing_state_and_key_helpers() -> Result<(), Box<dyn st
 
     let custom_key = DynamicStore::key_create("%@/%@", &["State:/Network", "Global/IPv4"])?;
     assert_eq!(custom_key, "State:/Network/Global/IPv4");
-    assert!(!DynamicStore::computer_name_key()?.is_empty());
-    assert!(!DynamicStore::console_user_key()?.is_empty());
+    assert_ne!(DynamicStore::computer_name_key()?, "");
+    assert_ne!(DynamicStore::console_user_key()?, "");
     Ok(())
 }

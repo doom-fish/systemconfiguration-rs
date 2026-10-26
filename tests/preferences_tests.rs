@@ -8,7 +8,7 @@ fn preferences_support_read_only_queries_and_paths() -> Result<(), Box<dyn std::
 
     let prefs = Preferences::new("systemconfiguration-rs.preferences-tests", None)?;
     let keys = prefs.copy_key_list();
-    assert!(!keys.is_empty());
+    assert_ne!(keys, [] as [std::string::String; 0]);
 
     let first_key = &keys[0];
     let _ = prefs.get_value(first_key)?;
@@ -18,7 +18,7 @@ fn preferences_support_read_only_queries_and_paths() -> Result<(), Box<dyn std::
 
     let auth_prefs =
         Preferences::new_with_authorization("systemconfiguration-rs.preferences-auth-tests", None)?;
-    assert!(!auth_prefs.copy_key_list().is_empty());
+    assert_ne!(auth_prefs.copy_key_list(), [] as [std::string::String; 0]);
 
     let notifications = PreferencesNotification::COMMIT | PreferencesNotification::APPLY;
     assert!(notifications.contains(PreferencesNotification::COMMIT));
